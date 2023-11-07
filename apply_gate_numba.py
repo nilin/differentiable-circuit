@@ -51,7 +51,10 @@ def apply_gate_2q(psi_out, psi_in, flatgate, p, q, i):
     rownumber = 2 * bp + bq
 
     i0 = int(i0)
-    blocksize = int(blocksize)
+    blocksize_p = int(blocksize_p)
+    blocksize_q = int(blocksize_q)
+    rownumber = int(rownumber)
+
     psi_out[i] = 0
     for jp in range(2):
         for jq in range(2):

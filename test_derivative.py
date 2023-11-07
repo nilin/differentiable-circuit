@@ -1,8 +1,9 @@
 from derivative import *
+from gate_combo import *
 import time
 import torch
 
-gate = UX()
+gate = UX(["theta"])
 
 L = 16
 psi = np.arange(2**L, dtype=np.complex64)
@@ -14,9 +15,7 @@ t0 = time.time()
 
 for _ in range(10):
     for p in range(L):
-        y, dy, dt = gate.forward_parameterized(
-            0.1, psi, psi, p=p, implementation="numba"
-        )
+        y, dy, dt = gate.forward(0.1, psi, psi, p=p, implementation="numba")
         print("numba", p)
 
 t1 = time.time()
@@ -27,9 +26,7 @@ psi = torch.Tensor(psi)
 
 for _ in range(10):
     for p in range(L):
-        y, dy, dt = gate.forward_parameterized(
-            0.1, psi, psi, p=p, implementation="torch"
-        )
+        y, dy, dt = gate.forward(0.1, psi, psi, p=p, implementation="torch")
         print("torch", p)
 
 t2 = time.time()

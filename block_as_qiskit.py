@@ -7,11 +7,7 @@ import numpy as np
 from _test import *
 
 # Circuit imports
-from qiskit.circuit import (
-    QuantumCircuit,
-    QuantumRegister,
-    ParameterVector,
-)
+from qiskit.circuit import QuantumCircuit, QuantumRegister, ParameterVector, Parameter
 from qiskit.quantum_info.operators import Operator
 
 

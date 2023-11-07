@@ -15,20 +15,34 @@ from apply_gate_torch import (
 
 
 class SwitchGate(Gate):
-    def apply(self, gate, psi, *args, implementation=None):
+    def apply(self, gate, psi, implementation=None, **kwargs):
         if implementation == "numba":
+            args = []
+            if "p" in kwargs:
+                args.append(kwargs["p"])
+            if "q" in kwargs:
+                args.append(kwargs["q"])
+
             flatgate = np.array(gate, dtype=np.complex64).flatten()
             psi_out = np.zeros_like(psi, dtype=np.complex64)
-            self.apply_numba(psi_out, psi, flatgate, *args, len(psi))
+            self.apply_fns["numba"](psi_out, psi, flatgate, *args, len(psi))
+
         if implementation == "torch":
             gate = np.array(gate, dtype=np.complex64)
-            self.apply_torch(psi, gate, *args)
+            self.apply_fns["torch"](psi, gate, **kwargs)
         return psi_out
 
 
+def test(*a, **kw):
+    print(a)
+    print(kw)
+
+
 class Gate_1q(SwitchGate):
-    apply_numba = apply_gate_1q_numba
-    apply_torch = apply_gate_1q_torch
+    apply_fns = {
+        "numba": apply_gate_1q_numba,
+        "torch": apply_gate_1q_torch,
+    }
 
 
 class Gate_2q(Gate):
