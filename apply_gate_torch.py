@@ -4,13 +4,13 @@ import torch
 def indices(psi, p, onehot=False):
     N = len(psi)
     blocksize = N // 2 ** (p + 1)
-    I = torch.range(N, device=psi.device)
+    I = torch.range(0, N - 1, device=psi.device)
     b = (I // blocksize) % 2
 
     if onehot:
         return b
     else:
-        I0 = torch.where(b == 0)
+        (I0,) = torch.where(b == 0)
         I1 = I0 + blocksize
         return I0, I1
 
