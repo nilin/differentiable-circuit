@@ -5,7 +5,7 @@
 #
 # which takes a device function and parallelizes it with cuda if it is available and otherwise with prange
 
-
+import globalconfig
 import numpy as np
 from numba import cuda, prange, void, float64, njit, uint64
 import sys

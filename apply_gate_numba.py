@@ -1,6 +1,8 @@
+from globalconfig import *
 import numba
 from numba import jit, njit, prange
 from numba import cuda
+import numpy as np
 from cudaswitch import new_value_at_i
 
 
@@ -67,12 +69,13 @@ def apply_gate_2q(psi_out, psi_in, flatgate, p, q, i):
     numba.void(
         numba.complex64[:],
         numba.complex64[:],
+        numba.complex64[:],
         numba.uint8,
         numba.uint8,
         numba.uint64,
     )
 )
-def apply_diag_2q(psi, gate, p, q, i):
+def apply_diag_2q(reg, psi, gate, p, q, i):
     N = len(psi)
     blocksize_p = N // 2 ** (p + 1)
     blocksize_q = N // 2 ** (q + 1)
@@ -80,4 +83,6 @@ def apply_diag_2q(psi, gate, p, q, i):
     bq = (i // blocksize_q) % 2
 
     entry = 2 * bp + bq
-    psi[i] = gate[entry] * psi[i]
+
+    # psi[i] = gate[entry] * psi[i]
+    reg[i] = gate[entry] * psi[i]

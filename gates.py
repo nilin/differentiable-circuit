@@ -1,4 +1,5 @@
-from derivative import Gate, AutoGate
+import globalconfig
+from differentiable_circuit import Gate, AutoGate
 import jax.numpy as jnp
 import numpy as np
 
@@ -16,6 +17,12 @@ from apply_gate_torch import (
 
 class SwitchGate(Gate):
     def apply(self, gate, psi, implementation=None, **kwargs):
+        if hasattr(self, "p") and "p" not in kwargs:
+            kwargs["p"] = self.p
+
+        if hasattr(self, "q") and "q" not in kwargs:
+            kwargs["q"] = self.q
+
         if implementation == "numba":
             args = []
             if "p" in kwargs:
@@ -26,11 +33,12 @@ class SwitchGate(Gate):
             flatgate = np.array(gate, dtype=np.complex64).flatten()
             psi_out = np.zeros_like(psi, dtype=np.complex64)
             self.apply_fns["numba"](psi_out, psi, flatgate, *args, len(psi))
+            return psi_out
 
         if implementation == "torch":
             gate = np.array(gate, dtype=np.complex64)
-            self.apply_fns["torch"](psi, gate, **kwargs)
-        return psi_out
+            psi = self.apply_fns["torch"](psi, gate, **kwargs)
+            return psi
 
 
 def test(*a, **kw):
@@ -45,18 +53,31 @@ class Gate_1q(SwitchGate):
     }
 
 
-class Gate_2q(Gate):
-    apply_numba = apply_gate_2q_numba
-    apply_torch = apply_gate_2q_torch
+class Gate_2q(SwitchGate):
+    apply_fns = {
+        "numba": apply_gate_2q_numba,
+        "torch": apply_gate_2q_torch,
+    }
 
 
-class Gate_2q_diag(Gate):
-    apply_numba = apply_diag_2q_numba
-    apply_torch = apply_diag_2q_torch
+class Gate_2q_diag(SwitchGate):
+    apply_fns = {
+        "numba": apply_diag_2q_numba,
+        "torch": apply_diag_2q_torch,
+    }
+
+    def inverse(self, gate):
+        return gate.conj()
 
 
-class UX(AutoGate, Gate_1q):
+class SingleParamGate(AutoGate):
     def gate(self, t):
+        (t,) = t
+        return self._gate(t)
+
+
+class UX(SingleParamGate, Gate_1q):
+    def _gate(self, t):
         return jnp.array(
             [
                 [jnp.cos(t), -1j * jnp.sin(t)],  # check if minus
@@ -65,15 +86,15 @@ class UX(AutoGate, Gate_1q):
         )
 
 
-class UZZ(AutoGate, Gate_2q_diag):
-    def gate(self, t):
+class UZZ(SingleParamGate, Gate_2q_diag):
+    def _gate(self, t):
         w = jnp.exp(1j * t)
         w_ = w.conj()
         return jnp.array((w_, w, w, w_), dtype=jnp.complex64)
 
 
-class UA(AutoGate, Gate_2q):
-    def gate(self, t):
+class UA(SingleParamGate, Gate_2q):
+    def _gate(self, t):
         X = np.array([[0, 1], [1, 0]])
         Z = np.array([[1, 0], [0, -1]])
         XZ = np.kron(X, Z)
