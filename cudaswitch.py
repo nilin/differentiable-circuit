@@ -6,11 +6,18 @@ the purpose of this snippet is to construct the decorator:
 
 which takes a device function and parallelizes it with cuda if it is available and otherwise with prange
 """
-from globalconfig import numba_CUDA_on
 import numpy as np
 from numba import cuda, prange, void, float64, njit, uint64
 import numba
+import argparse
 
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--nocuda", action="store_true")
+args, _ = argparser.parse_known_args()
+
+"""CUDA for numba"""
+numba_CUDA_on = (not args.nocuda) and cuda.is_available()
+print(f"CUDA {'ON' if numba_CUDA_on else 'OFF'} for numba")
 
 blocks = 1000
 threads = 1000

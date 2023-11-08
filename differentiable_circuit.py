@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from typing import Any, Callable, Dict, List, Tuple, Union
 import torch
+from collections import namedtuple
 
 
 # def apply_Z_basis_gate(full_gate, psi):
@@ -29,7 +30,7 @@ class Gate:
         dthetas = []
         for dgate in Dgate:
             dy_gate = apply(dgate, x)
-            dthetas.append(np.dot(dy, dy_gate))
+            dthetas.append(torch.dot(dy, dy_gate))
         return y, dy, dthetas
 
     def tangent(self, thetas, x, dx, reverse=False, **kwargs):
@@ -107,11 +108,19 @@ class UnitaryCircuit:
     def __init__(self, gates):
         self.gates: List[Gate] = gates
 
-    def loss_and_grad(self, lossfn_and_grad, theta_dict, x, **kwargs):
+    def loss_and_grad(self, theta_dict, x, lossfn=None, lossfn_and_grad=None, **kwargs):
         y = self.run(theta_dict, x, **kwargs)
-        loss, dy = lossfn_and_grad(y)
+
+        if lossfn_and_grad is None:
+            y.requires_grad_(True)
+            loss = lossfn(y)
+            loss.backward()
+            dy = y.grad
+        else:
+            loss, dy = lossfn_and_grad(y)
+
         x, dx, dthetas = self.tangent(theta_dict, y, dy, reverse=True, **kwargs)
-        return loss, dict(dthetas=dthetas, dx=dx)
+        return namedtuple("Lossgrad", ["loss", "dthetas", "dx"])(loss, dthetas, dx)
 
     def tangent(self, theta_dict, x, dx, reverse=False, **kwargs):
         gates = self.gates[::-1] if reverse else self.gates
@@ -125,7 +134,7 @@ class UnitaryCircuit:
             }
 
             for name, dtheta in zip(gate.param_names, dthetas):
-                dtheta_dict[name] += dtheta
+                dtheta_dict[name] += dtheta.detach().cpu().numpy()
 
         return x, dx, dtheta_dict
 

@@ -7,10 +7,19 @@ import torch
 import numpy as np
 from numpy.testing import assert_allclose
 import cudaswitch
+from jax.tree_util import tree_map
+import argparse
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--L", type=int, default=20)
+args, _ = argparser.parse_known_args()
 
 
 def test():
-    L = 20
+    L = args.L
+
+    print(f"{L} qubits, vector size {2**L:,}")
+
     psi = np.arange(2**L, dtype=np.complex64)
     psi /= np.linalg.norm(psi)
 
@@ -21,7 +30,7 @@ def test():
         x = utils.torchcomplex(psi)
         x = x.to(globalconfig.torchdevice)
 
-    nlayers = 10
+    nlayers = 1
 
     Xs = [UX(["theta"], p=i) for i in range(L)]
     ZZs = [UZZ(["phi"], p=i, q=i + 1) for i in range(L - 1)]
@@ -36,12 +45,27 @@ def test():
     y = C.run(thetas, x)
     z = C.run(thetas, y, reverse=True)
 
-    if impl == "torch":
-        print("norm of output", torch.norm(y).cpu().numpy())
-        print("error", torch.norm(x - z).cpu().numpy)
+    if impl == "numba":
+        x = torch.as_tensor(x, device=torch.device("cuda"))
+        y = torch.as_tensor(y, device=torch.device("cuda"))
+        z = torch.as_tensor(z, device=torch.device("cuda"))
+
+    print("norm of output", torch.norm(y).cpu().numpy())
+    print("error", torch.norm(x - z).cpu().numpy())
 
     t1 = time.time()
     print(f"time for {len(C.gates)} gates: {t1-t0:.3f}s")
+
+    getupdates = lambda lr, dT: tree_map(lambda dt: -lr * dt, dthetas)
+    apply = lambda T, dT: tree_map(lambda t, dt: (t + dt).real, thetas, dthetas)
+    target = x
+    lossfn = lambda y: torch.norm(y - target)
+
+    for i in range(10000):
+        loss, dthetas, dx = C.loss_and_grad(thetas, x, lossfn=lossfn)
+        updates = getupdates(0.1, dthetas)
+        thetas = apply(thetas, updates)
+        print(loss.detach().cpu().numpy())
 
 
 def testgrad():

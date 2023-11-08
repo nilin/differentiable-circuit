@@ -101,22 +101,3 @@ def Sum_ZZ(reg, L, i):
             reg[i] += 1
         else:
             reg[i] -= 1
-
-
-# @new_value_at_i(
-#    numba.void(
-#        numba.complex64[:],
-#        numba.complex64[:],
-#        numba.uint8,
-#        numba.boolean,
-#        numba.uint64,
-#    )
-# )
-# def setbit(psi_out, psi, value, p, i):
-#    N = len(psi_out)
-#    blocksize = N // 2 ** (p + 1)
-#    b= (i // blocksize) % 2
-#    if b==value:
-#        psi_out[i]=psi[i]
-#    else:
-#        psi_out[i]=0

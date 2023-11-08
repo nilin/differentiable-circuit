@@ -1,3 +1,4 @@
+from cudaswitch import numba_CUDA_on
 import argparse
 from numba import cuda
 from jax.config import config
@@ -11,19 +12,15 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--torch", action="store_true")
 argparser.add_argument("--numba", action="store_true")
 argparser.add_argument("--nocuda", action="store_true")
-args = argparser.parse_args()
+args, _ = argparser.parse_known_args()
 
 
 """pick gate implementation"""
 if args.torch and args.numba:
     raise ValueError("Cannot request both torch and numba")
 
-implementation = "torch" if args.torch else "numba"
+implementation = "numba" if args.numba else "torch"
 
-
-"""CUDA for numba"""
-numba_CUDA_on = (not args.nocuda) and cuda.is_available()
-print(f"CUDA {'ON' if numba_CUDA_on else 'OFF'} for numba")
 
 """CUDA for torch"""
 torchdevice = torch.device("cuda" if torch.cuda.is_available() else "cpu")
