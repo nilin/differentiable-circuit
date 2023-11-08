@@ -76,9 +76,30 @@ class AutoGate(Gate):
 
 
 class Measure01(Gate):
-    def __init__(self, outcome_name, p):
-        self.outcome_name = outcome_name
+    param_names = []
+
+    def __init__(self, name, p):
+        self.name = name
         self.p = p
+
+    def val_grad_gate(self, thetas, reverse=False):
+        return np.zeros(0), []
+
+    def apply(self, gate, psi, randomness, **kwargs):
+        p = self.p
+        u = randomness[self.name]
+        a, b = self.get_01_weights(psi, p)
+        separator = a / (a + b)
+        outcome = u > separator
+        return self.setbit(psi, outcome, p)
+
+    @staticmethod
+    def get_01_weights(psi, p):
+        raise NotImplementedError
+
+    @staticmethod
+    def setbit(psi, value, p):
+        raise NotImplementedError
 
 
 class UnitaryCircuit:

@@ -2,8 +2,24 @@ from globalconfig import *
 import numba
 from numba import jit, njit, prange
 from numba import cuda
+import numba as nb
 import numpy as np
-from cudaswitch import new_value_at_i
+from numba import boolean as bool, uint8 as u, uint64 as U, void, complex64 as C, types
+from numba.types import Tuple
+from cudaswitch import new_value_at_i, cudaswitch_device
+
+
+@cudaswitch_device(
+    numba.types.Tuple((numba.boolean, numba.uint64))(
+        numba.uint64,
+        numba.uint8,
+        numba.uint64,
+    )
+)
+def bitvalue(N, p, i):
+    blocksize = N // 2 ** (p + 1)
+    bit = (i // blocksize) % 2
+    return int(bit), int(blocksize)
 
 
 @new_value_at_i(
@@ -16,19 +32,11 @@ from cudaswitch import new_value_at_i
     )
 )
 def apply_gate_1q(psi_out, psi_in, flatgate, p, i):
-    N = len(psi_out)
-    blocksize = N // 2 ** (p + 1)
-    b_out = (i // blocksize) % 2
+    b_out, blocksize = bitvalue(len(psi_in), p, i)
 
-    if b_out:
-        r0, r1 = flatgate[2], flatgate[3]
-        i0 = i - blocksize
-    else:
-        r0, r1 = flatgate[0], flatgate[1]
-        i0 = i
+    r0, r1 = flatgate[2 * b_out], flatgate[2 * b_out + 1]
+    i0 = i - blocksize * b_out
 
-    i0 = int(i0)
-    blocksize = int(blocksize)
     psi_out[i] = r0 * psi_in[i0] + r1 * psi_in[i0 + blocksize]
 
 
@@ -43,19 +51,11 @@ def apply_gate_1q(psi_out, psi_in, flatgate, p, i):
     )
 )
 def apply_gate_2q(psi_out, psi_in, flatgate, p, q, i):
-    N = len(psi_out)
-    blocksize_p = N // 2 ** (p + 1)
-    blocksize_q = N // 2 ** (q + 1)
-    bp = (i // blocksize_p) % 2
-    bq = (i // blocksize_q) % 2
+    bp, blocksize_p = bitvalue(len(psi_in), p, i)
+    bq, blocksize_q = bitvalue(len(psi_in), q, i)
 
     i0 = i - blocksize_p * bp - blocksize_q * bq
     rownumber = 2 * bp + bq
-
-    i0 = int(i0)
-    blocksize_p = int(blocksize_p)
-    blocksize_q = int(blocksize_q)
-    rownumber = int(rownumber)
 
     psi_out[i] = 0
     for jp in range(2):
@@ -76,13 +76,47 @@ def apply_gate_2q(psi_out, psi_in, flatgate, p, q, i):
     )
 )
 def apply_diag_2q(reg, psi, gate, p, q, i):
-    N = len(psi)
-    blocksize_p = N // 2 ** (p + 1)
-    blocksize_q = N // 2 ** (q + 1)
-    bp = (i // blocksize_p) % 2
-    bq = (i // blocksize_q) % 2
+    bp, _ = bitvalue(len(psi), p, i)
+    bq, _ = bitvalue(len(psi), q, i)
 
     entry = 2 * bp + bq
-
-    # psi[i] = gate[entry] * psi[i]
     reg[i] = gate[entry] * psi[i]
+
+
+@new_value_at_i(
+    numba.void(
+        numba.complex64[:],
+        numba.uint8,
+        numba.uint64,
+    )
+)
+def Sum_ZZ(reg, L, i):
+    N = 2**L
+
+    reg[i] = 0
+    for p in range(L - 1):
+        b1, _ = bitvalue(N, p, i)
+        b2, _ = bitvalue(N, p + 1, i)
+        if b1 == b2:
+            reg[i] += 1
+        else:
+            reg[i] -= 1
+
+
+# @new_value_at_i(
+#    numba.void(
+#        numba.complex64[:],
+#        numba.complex64[:],
+#        numba.uint8,
+#        numba.boolean,
+#        numba.uint64,
+#    )
+# )
+# def setbit(psi_out, psi, value, p, i):
+#    N = len(psi_out)
+#    blocksize = N // 2 ** (p + 1)
+#    b= (i // blocksize) % 2
+#    if b==value:
+#        psi_out[i]=psi[i]
+#    else:
+#        psi_out[i]=0

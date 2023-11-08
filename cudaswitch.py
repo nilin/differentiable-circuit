@@ -1,18 +1,19 @@
-# easily switch between cuda and non-cuda
-# the purpose of this snippet is to construct the decorator:
-#
-# @def new_value_at_i(signature)
-#
-# which takes a device function and parallelizes it with cuda if it is available and otherwise with prange
+"""
+easily switch between cuda and non-cuda
+the purpose of this snippet is to construct the decorator:
 
-import globalconfig
+@def new_value_at_i(signature)
+
+which takes a device function and parallelizes it with cuda if it is available and otherwise with prange
+"""
+import argparse
 import numpy as np
 from numba import cuda, prange, void, float64, njit, uint64
-import sys
 
-
-cuda_on = "nocuda" not in sys.argv and cuda.is_available()
-print("CUDA {}".format(["OFF", "ON"][cuda_on]))
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--nocuda", action="store_true")
+args = argparser.parse_args()
+cuda_on = (not args.nocuda) and cuda.is_available()
 
 blocks = 1000
 threads = 1000
@@ -54,7 +55,8 @@ def F({0},D):                               \n\
             body({0},i)                     \n\
     else:                                   \n\
         for i in prange(D):                 \n\
-            body({0},i)                     ".format(
+            body({0},i)                     \n\
+    ".format(
         argstring
     )
     with open("_cudaswitch_code.py", "w") as f:
@@ -67,6 +69,19 @@ def F({0},D):                               \n\
 
 
 ####################################################################################################
+
+"""
+When we use the decorator
+
+@new_value_at_i(void(float64[:], uint64))
+def square(X, i):
+    X[i] = X[i] ** 2
+
+The last entry in the definition corresponds to index.
+The resulting function is of the form square(X, D), 
+where D is the length of X.
+
+"""
 
 
 def new_value_at_i(signature):
