@@ -6,14 +6,11 @@ the purpose of this snippet is to construct the decorator:
 
 which takes a device function and parallelizes it with cuda if it is available and otherwise with prange
 """
-import argparse
+from globalconfig import numba_CUDA_on
 import numpy as np
 from numba import cuda, prange, void, float64, njit, uint64
+import numba
 
-argparser = argparse.ArgumentParser()
-argparser.add_argument("--nocuda", action="store_true")
-args = argparser.parse_args()
-cuda_on = (not args.nocuda) and cuda.is_available()
 
 blocks = 1000
 threads = 1000
@@ -21,15 +18,15 @@ threads = 1000
 
 def cudaswitch_kernel(dtypes):
     def dec(f):
-        F = cuda.jit(dtypes)(f) if cuda_on else njit(dtypes, parallel=True)(f)
-        return F[blocks, threads] if cuda_on else F
+        F = cuda.jit(dtypes)(f) if numba_CUDA_on else njit(dtypes, parallel=True)(f)
+        return F[blocks, threads] if numba_CUDA_on else F
 
     return dec
 
 
 def cudaswitch_device(dtypes):
     def dec(f):
-        return cuda.jit(dtypes, device=True)(f) if cuda_on else njit(dtypes)(f)
+        return cuda.jit(dtypes, device=True)(f) if numba_CUDA_on else njit(dtypes)(f)
 
     return dec
 
@@ -48,7 +45,7 @@ def get_optionalcuda_parallelized(signature, body):
     argstring = ",".join(["x{}".format(i) for i in range(argnum - 1)])
     code = "\
 def F({0},D):                               \n\
-    if cuda_on:                             \n\
+    if numba_CUDA_on:                       \n\
         start = cuda.grid(1)                \n\
         stepsize = cuda.gridsize(1)         \n\
         for i in range(start, D, stepsize): \n\
@@ -94,9 +91,30 @@ def new_value_at_i(signature):
 ####################################################################################################
 
 
+def try_device_array_like(x):
+    if numba_CUDA_on:
+        return cuda.device_array_like(x)
+    else:
+        return np.zeros_like(x)
+
+
+def try_device_array(length, dtype=numba.complex64):
+    if numba_CUDA_on:
+        return cuda.device_array(length, dtype=dtype)
+    else:
+        return np.zeros(length, dtype=dtype)
+
+
+def try_to_device(x):
+    if numba_CUDA_on:
+        return cuda.to_device(x)
+    else:
+        return x
+
+
 def wrapcuda(f):
     def f_(*args):
-        moved = [isinstance(x, np.ndarray) and cuda_on for x in args]
+        moved = [isinstance(x, np.ndarray) and numba_CUDA_on for x in args]
         deviceargs = [cuda.to_device(x) if m else x for m, x in zip(moved, args)]
         f(*deviceargs)
         args = [x.copy_to_host() if m else x for m, x in zip(moved, deviceargs)]

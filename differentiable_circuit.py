@@ -4,6 +4,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 from typing import Any, Callable, Dict, List, Tuple, Union
+import torch
 
 
 # def apply_Z_basis_gate(full_gate, psi):

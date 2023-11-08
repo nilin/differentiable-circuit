@@ -1,3 +1,4 @@
+from globalconfig import implementation as impl
 import globalconfig
 from differentiable_circuit import Gate, AutoGate
 import differentiable_circuit
@@ -7,6 +8,7 @@ import torch
 import apply_gate_numba
 import apply_gate_torch
 import cudaswitch, numba
+import utils
 
 from apply_gate_numba import (
     apply_gate_1q as apply_gate_1q_numba,
@@ -21,56 +23,51 @@ from apply_gate_torch import (
 )
 
 
+"""load gate implementation"""
+
+
 class SwitchGate(Gate):
-    def apply(self, gate, psi, implementation=None, **kwargs):
+    def apply(self, gate, psi, **kwargs):
         if hasattr(self, "p") and "p" not in kwargs:
             kwargs["p"] = self.p
 
         if hasattr(self, "q") and "q" not in kwargs:
             kwargs["q"] = self.q
 
-        if implementation == "numba":
-            args = []
-            if "p" in kwargs:
-                args.append(kwargs["p"])
-            if "q" in kwargs:
-                args.append(kwargs["q"])
+        match impl:
+            case "numba":
+                args = []
+                if "p" in kwargs:
+                    args.append(kwargs["p"])
+                if "q" in kwargs:
+                    args.append(kwargs["q"])
 
-            flatgate = np.array(gate, dtype=np.complex64).flatten()
-            psi_out = np.zeros_like(psi, dtype=np.complex64)
-            self.apply_fns["numba"](psi_out, psi, flatgate, *args, len(psi))
-            return psi_out
+                register = cudaswitch.try_device_array_like(psi)
+                flatgate = np.array(gate, dtype=np.complex64).flatten()
+                self.apply_numba[0](register, psi, flatgate, *args, len(psi))
+                del psi
+                return register
 
-        if implementation == "torch":
-            gate = np.array(gate, dtype=np.complex64)
-            psi = self.apply_fns["torch"](psi, gate, **kwargs)
-            return psi
-
-
-def test(*a, **kw):
-    print(a)
-    print(kw)
+            case "torch":
+                # gate = np.array(gate, dtype=np.complex64)
+                gate = utils.torchcomplex(gate)
+                psi = self.apply_torch[0](psi, gate, **kwargs)
+                return psi
 
 
 class Gate_1q(SwitchGate):
-    apply_fns = {
-        "numba": apply_gate_1q_numba,
-        "torch": apply_gate_1q_torch,
-    }
+    apply_numba = (apply_gate_1q_numba,)
+    apply_torch = (apply_gate_1q_torch,)
 
 
 class Gate_2q(SwitchGate):
-    apply_fns = {
-        "numba": apply_gate_2q_numba,
-        "torch": apply_gate_2q_torch,
-    }
+    apply_numba = (apply_gate_2q_numba,)
+    apply_torch = (apply_gate_2q_torch,)
 
 
 class Gate_2q_diag(SwitchGate):
-    apply_fns = {
-        "numba": apply_diag_2q_numba,
-        "torch": apply_diag_2q_torch,
-    }
+    apply_numba = (apply_diag_2q_numba,)
+    apply_torch = (apply_diag_2q_torch,)
 
     def inverse(self, gate):
         return gate.conj()
@@ -80,6 +77,9 @@ class SingleParamGate(Gate):
     def gate(self, t):
         (t,) = t
         return self._gate(t)
+
+
+"""specific parameterized gates"""
 
 
 class UX(SingleParamGate, Gate_1q, AutoGate):

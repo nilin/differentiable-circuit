@@ -75,12 +75,12 @@ def apply_gate_2q(psi_out, psi_in, flatgate, p, q, i):
         numba.uint64,
     )
 )
-def apply_diag_2q(reg, psi, gate, p, q, i):
+def apply_diag_2q(psi_out, psi, gate, p, q, i):
     bp, _ = bitvalue(len(psi), p, i)
     bq, _ = bitvalue(len(psi), q, i)
 
     entry = 2 * bp + bq
-    reg[i] = gate[entry] * psi[i]
+    psi_out[i] = gate[entry] * psi[i]
 
 
 @new_value_at_i(

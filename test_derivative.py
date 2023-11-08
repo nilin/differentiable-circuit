@@ -1,4 +1,5 @@
 import globalconfig
+from globalconfig import implementation as impl
 from differentiable_circuit import *
 from gates import *
 import time
@@ -8,7 +9,42 @@ from numpy.testing import assert_allclose
 import cudaswitch
 
 
-def testcorrect():
+def test():
+    L = 20
+    psi = np.arange(2**L, dtype=np.complex64)
+    psi /= np.linalg.norm(psi)
+
+    if impl == "numba":
+        x = cudaswitch.try_to_device(psi)
+
+    if impl == "torch":
+        x = utils.torchcomplex(psi)
+        x = x.to(globalconfig.torchdevice)
+
+    nlayers = 10
+
+    Xs = [UX(["theta"], p=i) for i in range(L)]
+    ZZs = [UZZ(["phi"], p=i, q=i + 1) for i in range(L - 1)]
+    layer = Xs + ZZs
+    C = [op for k in range(nlayers) for op in layer]
+
+    t0 = time.time()
+    C = UnitaryCircuit(C)
+
+    thetas = {"theta": 0.1, "phi": 0.2}
+
+    y = C.run(thetas, x)
+    z = C.run(thetas, y, reverse=True)
+
+    if impl == "torch":
+        print("norm of output", torch.norm(y).cpu().numpy())
+        print("error", torch.norm(x - z).cpu().numpy)
+
+    t1 = time.time()
+    print(f"time for {len(C.gates)} gates: {t1-t0:.3f}s")
+
+
+def testgrad():
     L = 2
     x = np.arange(2**L, dtype=np.complex64)
     target = x[::-1]
@@ -55,25 +91,5 @@ def testcorrect():
 #        return val, np.array(grad, dtype=np.complex64)
 
 
-def testperf():
-    L = 16
-    psi = np.arange(2**L, dtype=np.complex64)
-    psi /= np.linalg.norm(psi)
-
-    gate0 = UX(["theta"], p=0)
-    gate1 = UX(["theta"], p=1)
-    gate2 = UX(["phi"], p=2)
-
-    C = UnitaryCircuit([gate0, gate1, gate2])
-    x = psi
-    z = np.zeros_like(psi)
-
-    thetas = {"theta": 0.1, "phi": 0.2}
-    y = C.run(thetas, x, implementation="numba")
-    z = C.run(thetas, y, implementation="numba", reverse=True)
-    print(np.linalg.norm(x - y))
-    print(np.linalg.norm(x - z))
-
-
-testcorrect()
-testperf()
+# testcorrect()
+test()
