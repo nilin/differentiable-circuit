@@ -1,8 +1,7 @@
-from typing import Callable, List, Tuple
+from typing import Callable, List
 import torch
 from collections import namedtuple
 from differentiable_gate import Gate, State
-from differentiable_gate import Scalar
 from dataclasses import dataclass
 
 
@@ -39,22 +38,20 @@ class UnitaryCircuit:
         psi0, X0 = self.tangent(psi_t, Xt, reverse=True)
         return loss, X0
 
-    def loss_and_grad_(
-        self,
-        x: State,
-        lossfn: Callable[[State], Scalar] = None,
-        lossfn_and_grad: Callable[[State], Tuple[Scalar, State]] = None,
-    ):
-        y = self.apply(x)
 
-        if lossfn_and_grad is not None:
-            loss, dy = lossfn_and_grad(y)
+class Params(dict):
+    # def __init__(self):
+    #    super().__init__()
 
-        else:
-            y.requires_grad_(True)
-            loss = lossfn(y)
-            loss.backward()
-            dy = y.grad
+    # __getattr__ = dict.get
+    # __setattr__ = dict.__setitem__
+    # __delattr__ = dict.__delitem__
 
-        x, dx = self.tangent(y, dy, reverse=True)
-        return self.Lossgrad(loss, dx)
+    # def add(self, **kwargs):
+    #    for key, value in kwargs.items():
+    #        self.__setitem__(key, self.def_param(value))
+    #    return self.values()
+
+    @staticmethod
+    def def_param(*initial_values):
+        return [torch.tensor(v).requires_grad_() for v in initial_values]
