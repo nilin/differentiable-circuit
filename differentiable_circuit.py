@@ -18,16 +18,28 @@ class UnitaryCircuit:
             x = gate.apply(x, inverse=reverse)
         return x
 
-    def tangent(self, x: State, dx: State, reverse=False):
+    def tangent(self, psi: State, X: State, reverse=False):
         gates = self.gates[::-1] if reverse else self.gates
 
         for gate in gates:
-            x, dx, dtheta = gate.tangent(x, dx, inverse=reverse)
-            torch.autograd.backward(gate.input, dtheta)
+            psi, X, dtheta = gate.tangent(psi, X, inverse=reverse)
+            torch.autograd.backward(gate.input, 2 * dtheta.real)
 
-        return x, dx
+        return psi, X
 
     def loss_and_grad(
+        self,
+        psi: State,
+        Op: Callable[[State], State] = None,
+    ):
+        psi_t = self.apply(psi)
+        Xt = Op(psi_t)
+        loss = Xt.conj().dot(psi_t).real
+
+        psi0, X0 = self.tangent(psi_t, Xt, reverse=True)
+        return loss, X0
+
+    def loss_and_grad_(
         self,
         x: State,
         lossfn: Callable[[State], Scalar] = None,
@@ -43,7 +55,6 @@ class UnitaryCircuit:
             loss = lossfn(y)
             loss.backward()
             dy = y.grad
-            y.zero_grad()
 
         x, dx = self.tangent(y, dy, reverse=True)
         return self.Lossgrad(loss, dx)

@@ -52,12 +52,12 @@ class Gate:
         dy = self.forward(Dgate_state, dx)
         dy_gate = self.forward(Dgate_state, x)
 
-        dtheta = torch.dot(dy, dy_gate)
+        dtheta = torch.dot(dy.conj(), dy_gate)
         return self.Tangent(y, dy, dtheta)
 
     def tangent(self, x: State, dx: State, inverse=False):
         gate_state = self._control(self.input, inverse=inverse)
-        Dgate_state = torch_jacobian(
+        Dgate_state = self.complex_out_jacobian(
             partial(self._control, inverse=inverse), self.input
         )
         return self._tangent_(gate_state, Dgate_state, x, dx)
@@ -81,6 +81,12 @@ class Gate:
     def inverse(gate_state: GateState) -> GateState:
         inv = gate_state.conj().T
         return inv
+
+    @staticmethod
+    def complex_out_jacobian(f, t):
+        real = torch_jacobian(lambda x: f(x).real, t)
+        imag = torch_jacobian(lambda x: f(x).imag, t)
+        return torch.complex(real, imag)
 
 
 @dataclass

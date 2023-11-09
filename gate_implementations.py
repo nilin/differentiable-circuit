@@ -1,5 +1,6 @@
 import torch
 from differentiable_gate import GateImplementation
+from config import tcomplex
 
 
 class TorchGate(GateImplementation):
@@ -21,9 +22,7 @@ class TorchGate(GateImplementation):
     def apply_gate_1q(self, gate, psi, p):
         I0, I1 = self.indices(psi, p)
 
-        psi_out = torch.zeros_like(
-            psi, device=self.device, dtype=torch.complex64
-        )
+        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
         psi_out[I0] = gate[0, 0] * psi[I0] + gate[0, 1] * psi[I1]
         psi_out[I1] = gate[1, 0] * psi[I0] + gate[1, 1] * psi[I1]
 
@@ -39,9 +38,7 @@ class TorchGate(GateImplementation):
         I2 = torch.where((bp == 1) * (bq == 0))
         I3 = torch.where((bp == 1) * (bq == 1))
 
-        psi_out = torch.zeros_like(
-            psi, device=self.device, dtype=torch.complex64
-        )
+        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
         for i, I in enumerate([I0, I1, I2, I3]):
             for j, J in enumerate([I0, I1, I2, I3]):
                 if gate[i, j] != 0:
@@ -58,9 +55,7 @@ class TorchGate(GateImplementation):
         I2 = torch.where((bp == 1) * (bq == 0))
         I3 = torch.where((bp == 1) * (bq == 1))
 
-        psi_out = torch.zeros_like(
-            psi, device=self.device, dtype=torch.complex64
-        )
+        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
         psi_out[I0] = gate[0] * psi[I0]
         psi_out[I1] = gate[1] * psi[I1]
         psi_out[I2] = gate[2] * psi[I2]
