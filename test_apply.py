@@ -2,7 +2,7 @@ from config import device
 import torch
 import argparse
 from gates import UX, UZZ
-from differentiable_circuit import UnitaryCircuit, Params
+from differentiable_circuit import UnitaryCircuit, Params, overlap
 from typing import Literal
 
 
@@ -46,35 +46,27 @@ def test_grad(L, depth):
         x = get_state(L, seed=0)
         target = get_state(L, seed=1)
 
-        def Op(y):
-            return target.conj().dot(y) * target
+        def Obs(y):
+            return target * overlap(target, y)
 
         def getloss(x):
             y = C.apply(x)
-            return y.conj().dot(Op(y)).real
+            return torch.abs(overlap(target, y)) ** 2
 
-        return C, x, Op, getloss
+        return C, x, Obs, getloss
 
-    def get_grad(
-        theta, phi, mode: Literal["qcontrol", "slow_trace", "slow_param_shift"]
-    ):
+    def get_grad(theta, phi, mode: Literal["qcontrol", "slow_param_shift"]):
         match mode:
             case "qcontrol":
-                C, x, Op, getloss = getcircuitwithparams(theta, phi)
-                C.loss_and_grad(x, Op=Op)
-                return theta.grad, phi.grad
-
-            case "slow_trace":
-                C, x, Op, getloss = getcircuitwithparams(theta, phi)
-                loss = getloss(x)
-                loss.backward()
+                C, x, Obs, getloss = getcircuitwithparams(theta, phi)
+                C.optimal_control(x, Obs=Obs)
                 return theta.grad, phi.grad
 
             case "slow_param_shift":
                 eps = 0.0001
-                C, x, Op, getloss1 = getcircuitwithparams(theta, phi)
-                C, x, Op, getloss2 = getcircuitwithparams(theta + eps, phi)
-                C, x, Op, getloss3 = getcircuitwithparams(theta, phi + eps)
+                C, x, Obs, getloss1 = getcircuitwithparams(theta, phi)
+                C, x, Obs, getloss2 = getcircuitwithparams(theta + eps, phi)
+                C, x, Obs, getloss3 = getcircuitwithparams(theta, phi + eps)
 
                 def estimate(getloss1, getloss2):
                     return (
