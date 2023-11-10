@@ -23,16 +23,12 @@ class Params(dict):
 class Circuit:
     gates: List[Gate]
 
-    def apply(self, x: State):
+    def apply(self, x: State, **kw):
         for gate in self.gates:
             x = gate.apply(x)
         return x
 
-    def optimal_control(
-        self,
-        psi: State,
-        Obs: Callable[[State], State],
-    ):
+    def optimal_control(self, psi: State, Obs: Callable[[State], State], **kw):
         psi_t = self.apply(psi)
         Xt = Obs(psi_t)
         E = Xt.conj().dot(psi_t).real
