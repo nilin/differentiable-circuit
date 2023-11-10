@@ -1,4 +1,5 @@
 from differentiable_gate import Scalar, Gate, CleanSlateAncilla
+from typing import Callable, List
 from differentiable_circuit import Circuit, Params, overlap, State, Channel
 from dataclasses import dataclass
 import torch
@@ -39,10 +40,11 @@ class UA(Exp_iH, Gate_2q):
 
 
 class TFIM(Hamiltonian):
-    def __init__(self, L, coupling: float = 1.0):
+    def __init__(self, endpoints, coupling: float = 1.0):
+        a, b = endpoints
         self.coupling = coupling
-        self.Ising = [UZZ(i, i + 1) for i in range(L - 1)]
-        self.transverse = [UX(i, strength=self.coupling) for i in range(L)]
+        self.Ising = [UZZ(i, i + 1) for i in range(a, b - 1)]
+        self.transverse = [UX(i, strength=self.coupling) for i in range(a, b)]
         self.terms = self.Ising + self.transverse
 
     def TrotterSuzuki(self, tau: Scalar, steps: int):
@@ -51,14 +53,14 @@ class TFIM(Hamiltonian):
 
 class Block(Circuit):
     def __init__(self, L, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
-        tfim = TFIM(L)
+        tfim = TFIM((1, L))
         self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [UA(0, 1, input=zeta)]
 
 
 class Lindblad(Channel):
     def __init__(self, *blocks):
-        separated_blocks = [block.gates + [CleanSlateAncilla()] for block in blocks]
-        self.gates = [gate for block in separated_blocks for gate in block]
+        self.blocks = blocks
+        self.measurements = [CleanSlateAncilla()] * len(self.blocks)
 
 
 def zero_state(L):

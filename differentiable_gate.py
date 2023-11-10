@@ -113,7 +113,7 @@ class Measurement(Gate):
         p0 = probabilitymass(x[: N // 2]) / probabilitymass(x)
 
         outcome = u > p0
-        return self.cut(x, outcome), outcome
+        return self.cut(x, outcome), outcome, (p0 if outcome == 0 else 1 - p0)
 
     def cut(self, x: State, outcome: bool):
         N = len(x)
@@ -143,7 +143,7 @@ class CleanSlateAncilla(Measurement):
 
         outcome = u > p0
         x = self.embed(self.cut(x, outcome), 0)
-        return x, outcome
+        return x, outcome, (p0 if outcome == 0 else 1 - p0)
 
     def reverse(self, x: State, outcome: bool):
         return self.embed(self.cut(x, 0), outcome)
