@@ -1,8 +1,7 @@
-from typing import Callable, Tuple
-from collections import namedtuple
-from dataclasses import dataclass, field, KW_ONLY
+from typing import Callable, Tuple, Optional
 import torch
 import config
+from dataclasses import dataclass, field
 
 from torch.autograd.functional import jacobian as torch_jacobian
 
@@ -19,13 +18,9 @@ class GateImplementation:
     apply_gate_diag: Callable[[GateState, State], State]
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Gate:
-    Tangent = namedtuple("Tangent", ["y", "dy", "dtheta"])
-
-    input: Scalar
-
-    _: KW_ONLY
+    input: Optional[Scalar] = None
     gate_implementation: GateImplementation = field(
         default_factory=config.get_default_gate_implementation
     )
@@ -43,8 +38,8 @@ class Gate:
             gate_state = self.adjoint(gate_state)
         return self.apply_gate_state(gate_state, x)
 
-    def dgate_state(self, inverse=False) -> GateState:
-        dU = self.complex_out_jacobian(self.control, self.input)
+    def dgate_state(self, input: Scalar, inverse=False) -> GateState:
+        dU = self.complex_out_jacobian(self.control, input)
         if inverse:
             return self.adjoint(dU)
         else:
@@ -57,6 +52,10 @@ class Gate:
         operations throughout to make use of autograd.
         """
         raise NotImplementedError
+
+    def set_input(self, input):
+        self.input = input
+        return self
 
     @staticmethod
     def adjoint(gate_state: GateState) -> GateState:
@@ -89,11 +88,13 @@ class Gate_2q(Gate):
         )
 
 
+@dataclass
 class Diag(Gate):
     def adjoint(self, gate):
         return gate.conj()
 
 
+@dataclass
 class Gate_2q_diag(Gate_2q, Diag):
     def apply_gate_state(self, gate_state, x):
         return self.gate_implementation.apply_gate_2q_diag(

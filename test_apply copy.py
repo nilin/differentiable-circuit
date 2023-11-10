@@ -4,7 +4,17 @@ import argparse
 from gates import UX, UZZ
 from differentiable_circuit import UnitaryCircuit, Params, overlap
 from typing import Literal
-import examples
+
+
+def get_problem(L, depth, theta, phi):
+    print(f"{L} qubits, vector size {2**L:,}")
+
+    Xs = [UX(theta / depth, i) for i in range(L)]
+    ZZs = [UZZ(phi / depth, i, i + 1) for i in range(L - 1)]
+    layer = Xs + ZZs
+    C = [op for k in range(depth) for op in layer]
+
+    return UnitaryCircuit(C)
 
 
 def get_state(L, seed=0):
@@ -19,8 +29,8 @@ def get_state(L, seed=0):
 
 
 def test_apply(L):
-    tau, zeta = Params.def_param(0.1, 0.2)
-    C, *_ = examples.Block(L, 2, 1.0, tau, zeta)
+    theta, phi = Params.def_param(0.1, 0.2)
+    C, *_ = get_problem(L, 2, theta, phi)
     x = get_state(L)
 
     y = C.apply(x)
@@ -31,8 +41,8 @@ def test_apply(L):
 
 
 def test_grad(L, depth):
-    def getcircuitwithparams(tau, zeta):
-        C = examples.Block(L, depth, 1.0, tau, zeta)
+    def getcircuitwithparams(theta, phi):
+        C = get_problem(L, depth, theta, phi)
         x = get_state(L, seed=0)
         target = get_state(L, seed=1)
 
@@ -45,18 +55,18 @@ def test_grad(L, depth):
 
         return C, x, Obs, getloss
 
-    def get_grad(tau, zeta, mode: Literal["qcontrol", "slow_param_shift"]):
+    def get_grad(theta, phi, mode: Literal["qcontrol", "slow_param_shift"]):
         match mode:
             case "qcontrol":
-                C, x, Obs, getloss = getcircuitwithparams(tau, zeta)
+                C, x, Obs, getloss = getcircuitwithparams(theta, phi)
                 C.optimal_control(x, Obs=Obs)
-                return tau.grad, zeta.grad
+                return theta.grad, phi.grad
 
             case "slow_param_shift":
                 eps = 0.0001
-                C, x, Obs, getloss1 = getcircuitwithparams(tau, zeta)
-                C, x, Obs, getloss2 = getcircuitwithparams(tau + eps, zeta)
-                C, x, Obs, getloss3 = getcircuitwithparams(tau, zeta + eps)
+                C, x, Obs, getloss1 = getcircuitwithparams(theta, phi)
+                C, x, Obs, getloss2 = getcircuitwithparams(theta + eps, phi)
+                C, x, Obs, getloss3 = getcircuitwithparams(theta, phi + eps)
 
                 def estimate(getloss1, getloss2):
                     return (
@@ -67,12 +77,12 @@ def test_grad(L, depth):
                     getloss1, getloss3
                 )
 
-    tau, zeta = Params.def_param(0.1, 0.2)
-    print(get_grad(tau, zeta, mode="qcontrol"))
-    print(get_grad(tau, zeta, mode="slow_trace"))
-    print(get_grad(tau, zeta, mode="slow_param_shift"))
+    theta, phi = Params.def_param(0.1, 0.2)
+    print(get_grad(theta, phi, mode="qcontrol"))
+    print(get_grad(theta, phi, mode="slow_trace"))
+    print(get_grad(theta, phi, mode="slow_param_shift"))
 
-    return tau, zeta
+    return theta, phi
 
 
 if __name__ == "__main__":
