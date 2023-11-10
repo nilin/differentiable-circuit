@@ -1,1 +1,5 @@
-pip install torch numpy
+python 3.10 with:
+
+    torch
+    numpy
+

@@ -30,10 +30,17 @@ class Block(UnitaryCircuit):
         self.gates = TrotterSuzuki(UZZs, UXs, -T, -coupling * T, k) + [UA]
 
 
-
-
 def zero_state(L):
     x = torch.zeros(2**L).to(config.tcomplex)
-    x[0]=1
+    x[0] = 1
     x = x.to(config.device)
+    return x
+
+
+def Haar_state(L, seed=0):
+    N = 2**L
+    x = torch.normal(0, 1, (2, N), generator=torch.Generator().manual_seed(seed))
+    x = torch.complex(x[0], x[1]).to(config.tcomplex)
+    x = x.to(config.device)
+    x = x / torch.norm(x)
     return x
