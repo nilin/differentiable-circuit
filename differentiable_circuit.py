@@ -104,5 +104,5 @@ class Channel(Circuit):
             psi = checkpoints.pop()
             X = M.reverse(X, m)
 
-            block.backprop(psi, X / p)
+            X = block.backprop(psi, X / p)
         return X
