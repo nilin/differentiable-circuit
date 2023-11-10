@@ -1,6 +1,6 @@
 from differentiable_gate import Scalar, Gate
-from gates import ExpH
-from differentiable_circuit import UnitaryCircuit, Params, overlap
+from gates import Exp_iH
+from differentiable_circuit import Circuit, Params, overlap
 import gates
 from typing import Callable, List
 import torch
@@ -8,8 +8,8 @@ import config
 
 
 def TrotterSuzuki(
-    Layer1: List[ExpH],
-    Layer2: List[ExpH],
+    Layer1: List[Exp_iH],
+    Layer2: List[Exp_iH],
     T1: Scalar,
     T2: Scalar,
     k: int,
@@ -22,7 +22,7 @@ def TrotterSuzuki(
     return U_0 + (U_1 + U_2) * (k - 1) + U_1 + U_0
 
 
-class Block(UnitaryCircuit):
+class Block(Circuit):
     def __init__(self, L, k, coupling: float, T: Scalar, zeta: Scalar):
         UZZs = [gates.UZZ(i, i + 1) for i in range(L - 1)]
         UXs = [gates.UX(i) for i in range(L)]
@@ -39,7 +39,9 @@ def zero_state(L):
 
 def Haar_state(L, seed=0):
     N = 2**L
-    x = torch.normal(0, 1, (2, N), generator=torch.Generator().manual_seed(seed))
+    x = torch.normal(
+        0, 1, (2, N), generator=torch.Generator().manual_seed(seed)
+    )
     x = torch.complex(x[0], x[1]).to(config.tcomplex)
     x = x.to(config.device)
     x = x / torch.norm(x)

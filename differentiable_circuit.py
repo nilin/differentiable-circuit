@@ -1,6 +1,6 @@
 from typing import Callable, List
 import torch
-from differentiable_gate import Gate, State
+from differentiable_gate import Gate, State, Measurement, uniform01
 from dataclasses import dataclass
 
 
@@ -15,20 +15,18 @@ class Params(dict):
 
 
 @dataclass
-class UnitaryCircuit:
+class Circuit:
     gates: List[Gate]
 
-    def apply(self, x: State, inverse=False):
-        gates = self.gates[::-1] if inverse else self.gates
-
-        for gate in gates:
-            x = gate.apply(x, inverse=inverse)
+    def apply(self, x: State):
+        for gate in self.gates:
+            x = gate.apply(x)
         return x
 
     def optimal_control(
         self,
         psi: State,
-        Obs: Callable[[State], State] = None,
+        Obs: Callable[[State], State],
     ):
         psi_t = self.apply(psi)
         Xt = Obs(psi_t)
@@ -37,18 +35,69 @@ class UnitaryCircuit:
         return E, self.backprop(psi_t, Xt)
 
     def backprop(self, psi, X):
-        dE_inputs_rev=[]
-        inputs_rev=[]
+        dE_inputs_rev = []
+        inputs_rev = []
 
         for gate in self.gates[::-1]:
-            psi_past = gate.apply(psi, inverse=True)
+            psi_past = gate.reverse(psi)
 
-            d_Uinv = gate.dgate_state(inverse=True)
-            dE_input = (
-                2 * overlap(psi_past, gate.apply_gate_state(d_Uinv, X)).real
-            )
+            d_Uinv = gate.dgate_state(reverse=True)
+            dE_input = 2 * overlap(psi_past, gate.apply_gate_state(d_Uinv, X)).real
             psi = psi_past
-            X = gate.apply(X, inverse=True)
+            X = gate.reverse(X)
+
+            dE_inputs_rev.append(dE_input)
+            inputs_rev.append(gate.input)
+
+        torch.autograd.backward(inputs_rev, dE_inputs_rev)
+        return X
+
+
+"""Channel generalizes Circuit, but we keep Circuit for readability"""
+
+
+@dataclass
+class Channel(Circuit):
+    gates: List[Gate]
+
+    def apply(self, x: State, randomness: List[uniform01]):
+        outcomes = []
+        for gate in self.gates:
+            if isinstance(gate, Measurement):
+                x, m = gate.apply(x, u=randomness.popleft())
+                outcomes.append(m)
+            else:
+                x = gate.apply(x)
+
+        return x, outcomes
+
+    def optimal_control(
+        self,
+        psi: State,
+        Obs: Callable[[State], State],
+        randomness,
+    ):
+        psi_t, outcomes = self.apply(psi, randomness)
+        Xt = Obs(psi_t)
+        E = Xt.conj().dot(psi_t).real
+
+        return E, self.backprop(psi_t, Xt, outcomes)
+
+    def backprop(self, psi, X, outcomes):
+        dE_inputs_rev = []
+        inputs_rev = []
+
+        for gate in self.gates[::-1]:
+            if isinstance(gate, Measurement):
+                m = outcomes.pop()
+                psi = gate.reverse(psi, m)
+                X = gate.reverse(X, m)
+            else:
+                psi_past = gate.reverse(psi)
+                d_Uinv = gate.dgate_state(reverse=True)
+                dE_input = 2 * overlap(psi_past, gate.apply_gate_state(d_Uinv, X)).real
+                psi = psi_past
+                X = gate.reverse(X)
 
             dE_inputs_rev.append(dE_input)
             inputs_rev.append(gate.input)
