@@ -1,33 +1,64 @@
-from differentiable_gate import Scalar, Gate
-from gates import Exp_iH
-from differentiable_circuit import Circuit, Params, overlap
-import gates
-from typing import Callable, List
+from differentiable_gate import Scalar, Gate, CleanSlateAncilla
+from differentiable_circuit import Circuit, Params, overlap, State, Channel
+from dataclasses import dataclass
 import torch
 import config
+import torch
+from differentiable_gate import (
+    Gate_1q,
+    Gate_2q,
+    Gate_2q_diag,
+)
+from Stones_theorem import Exp_iH, Exp_iH_diag, Hamiltonian
+import numpy as np
+from gate_implementations import torchcomplex
 
 
-def TrotterSuzuki(
-    Layer1: List[Exp_iH],
-    Layer2: List[Exp_iH],
-    T1: Scalar,
-    T2: Scalar,
-    k: int,
-):
-    t1 = T1 / k
-    t2 = T2 / k
-    U_0 = [U.set_input(t2 / 2) for U in Layer2]
-    U_1 = [U.set_input(t1) for U in Layer1]
-    U_2 = [U.set_input(t2) for U in Layer2]
-    return U_0 + (U_1 + U_2) * (k - 1) + U_1 + U_0
+def convert(matrix):
+    return torchcomplex(np.array(matrix))
+
+
+"""Specific gates"""
+
+
+@dataclass
+class UX(Exp_iH, Gate_1q):
+    H = X = convert([[0, 1], [1, 0]])
+
+
+@dataclass
+class UZZ(Exp_iH_diag, Gate_2q_diag):
+    H = ZZ = convert([1, -1, -1, 1])
+
+
+@dataclass
+class UA(Exp_iH, Gate_2q):
+    X = np.array([[0, 1], [1, 0]])
+    Z = np.array([[1, 0], [0, -1]])
+    H = XZ = convert(np.kron(X, Z))
+
+
+class TFIM(Hamiltonian):
+    def __init__(self, L, coupling: float = 1.0):
+        self.coupling = coupling
+        self.Ising = [UZZ(i, i + 1) for i in range(L - 1)]
+        self.transverse = [UX(i, strength=self.coupling) for i in range(L)]
+        self.terms = self.Ising + self.transverse
+
+    def TrotterSuzuki(self, tau: Scalar, steps: int):
+        return super().TrotterSuzuki(self.transverse, self.Ising, tau, steps)
 
 
 class Block(Circuit):
-    def __init__(self, L, k, coupling: float, T: Scalar, zeta: Scalar):
-        UZZs = [gates.UZZ(i, i + 1) for i in range(L - 1)]
-        UXs = [gates.UX(i) for i in range(L)]
-        UA = gates.UA(0, 1, input=zeta)
-        self.gates = TrotterSuzuki(UZZs, UXs, -T, -coupling * T, k) + [UA]
+    def __init__(self, L, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
+        tfim = TFIM(L)
+        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [UA(0, 1, input=zeta)]
+
+
+class Lindblad(Channel):
+    def __init__(self, *blocks):
+        separated_blocks = [block.gates + [CleanSlateAncilla()] for block in blocks]
+        self.gates = [gate for block in separated_blocks for gate in block]
 
 
 def zero_state(L):
@@ -39,9 +70,7 @@ def zero_state(L):
 
 def Haar_state(L, seed=0):
     N = 2**L
-    x = torch.normal(
-        0, 1, (2, N), generator=torch.Generator().manual_seed(seed)
-    )
+    x = torch.normal(0, 1, (2, N), generator=torch.Generator().manual_seed(seed))
     x = torch.complex(x[0], x[1]).to(config.tcomplex)
     x = x.to(config.device)
     x = x / torch.norm(x)

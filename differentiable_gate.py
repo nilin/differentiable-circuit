@@ -1,8 +1,7 @@
-from typing import Callable, Tuple, Optional
-import torch
 import config
+from typing import Callable, Tuple, Optional
 from dataclasses import dataclass, field
-
+import torch
 from torch.autograd.functional import jacobian as torch_jacobian
 
 

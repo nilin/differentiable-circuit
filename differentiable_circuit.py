@@ -1,7 +1,7 @@
-from typing import Callable, List
-import torch
 from differentiable_gate import Gate, State, Measurement, uniform01
+from typing import Callable, List
 from dataclasses import dataclass
+import torch
 
 
 def overlap(phi, psi):
@@ -12,6 +12,9 @@ class Params(dict):
     @staticmethod
     def def_param(*initial_values):
         return (torch.tensor(v).requires_grad_() for v in initial_values)
+
+
+"""Circuit is less general than Channel below, but we first define the unitary version for readability"""
 
 
 @dataclass
@@ -53,7 +56,7 @@ class Circuit:
         return X
 
 
-"""Channel generalizes Circuit, but we keep Circuit for readability"""
+"""Channel generalizes Circuit to allow for measurements"""
 
 
 @dataclass
@@ -64,7 +67,7 @@ class Channel(Circuit):
         outcomes = []
         for gate in self.gates:
             if isinstance(gate, Measurement):
-                x, m = gate.apply(x, u=randomness.popleft())
+                x, m = gate.apply(x, u=randomness.pop())
                 outcomes.append(m)
             else:
                 x = gate.apply(x)
@@ -92,15 +95,17 @@ class Channel(Circuit):
                 m = outcomes.pop()
                 psi = gate.reverse(psi, m)
                 X = gate.reverse(X, m)
+
             else:
                 psi_past = gate.reverse(psi)
+
                 d_Uinv = gate.dgate_state(reverse=True)
                 dE_input = 2 * overlap(psi_past, gate.apply_gate_state(d_Uinv, X)).real
                 psi = psi_past
                 X = gate.reverse(X)
 
-            dE_inputs_rev.append(dE_input)
-            inputs_rev.append(gate.input)
+                dE_inputs_rev.append(dE_input)
+                inputs_rev.append(gate.input)
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X

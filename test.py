@@ -24,7 +24,7 @@ def test_apply(L):
 
 def test_grad(L, depth):
     def test_problem(tau, zeta):
-        C = examples.Block(L, depth, 1.0, tau, zeta)
+        C = examples.Block(L, tau, zeta)
         x = examples.zero_state(L)
         target = examples.Haar_state(L, seed=0)
 
