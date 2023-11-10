@@ -38,8 +38,8 @@ class Gate:
             gate_state = self.adjoint(gate_state)
         return self.apply_gate_state(gate_state, x)
 
-    def dgate_state(self, input: Scalar, inverse=False) -> GateState:
-        dU = self.complex_out_jacobian(self.control, input)
+    def dgate_state(self, inverse=False) -> GateState:
+        dU = self.complex_out_jacobian(self.control, self.input)
         if inverse:
             return self.adjoint(dU)
         else:

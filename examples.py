@@ -3,6 +3,8 @@ from gates import ExpH
 from differentiable_circuit import UnitaryCircuit, Params, overlap
 import gates
 from typing import Callable, List
+import torch
+import config
 
 
 def TrotterSuzuki(
@@ -24,5 +26,14 @@ class Block(UnitaryCircuit):
     def __init__(self, L, k, coupling: float, T: Scalar, zeta: Scalar):
         UZZs = [gates.UZZ(i, i + 1) for i in range(L - 1)]
         UXs = [gates.UX(i) for i in range(L)]
-        UA = gates.UA(0, 1)
+        UA = gates.UA(0, 1, input=zeta)
         self.gates = TrotterSuzuki(UZZs, UXs, -T, -coupling * T, k) + [UA]
+
+
+
+
+def zero_state(L):
+    x = torch.zeros(2**L).to(config.tcomplex)
+    x[0]=1
+    x = x.to(config.device)
+    return x

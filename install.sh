@@ -1,1 +1,1 @@
-pip install torch numba jax jaxlib numpy matplotlib
+pip install torch numpy

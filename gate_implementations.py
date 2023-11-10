@@ -1,10 +1,11 @@
 import torch
 from differentiable_gate import GateImplementation
 from config import tcomplex
+import config
 
 
 class TorchGate(GateImplementation):
-    device: torch.device = torch.device("cuda")
+    device: torch.device = torch.device(config.device)
 
     def indices(self, psi, p, onehot=False):
         N = len(psi)

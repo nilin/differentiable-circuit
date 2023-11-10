@@ -37,20 +37,21 @@ class UnitaryCircuit:
         return E, self.backprop(psi_t, Xt)
 
     def backprop(self, psi, X):
-        dE = 0
+        dE_inputs_rev=[]
+        inputs_rev=[]
 
         for gate in self.gates[::-1]:
             psi_past = gate.apply(psi, inverse=True)
 
-            d_Uinv = gate.dgate_state(input, inverse=True)
+            d_Uinv = gate.dgate_state(inverse=True)
             dE_input = (
                 2 * overlap(psi_past, gate.apply_gate_state(d_Uinv, X)).real
             )
-            dE += dE_input
-
             psi = psi_past
             X = gate.apply(X, inverse=True)
 
-        # torch.autograd.backward(gate.input, dE_input)
-        dE.backward()
+            dE_inputs_rev.append(dE_input)
+            inputs_rev.append(gate.input)
+
+        torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X

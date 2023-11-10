@@ -38,34 +38,38 @@ def convert(matrix):
     return torchcomplex(np.array(matrix))
 
 
+
+@dataclass
 class UX(ExpH, Gate_1q):
     H = X = convert([[0, 1], [1, 0]])
 
 
+@dataclass
 class UZZ(ExpH_diag, Gate_2q_diag):
     H = ZZ = convert([1, -1, -1, 1])
 
 
+@dataclass
 class UA(ExpH, Gate_2q):
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])
     H = XZ = convert(np.kron(X, Z))
 
 
-def gradsafe_convert_to_tensor(gate_state):
-    """
-    We cannot apply torch.Tensor
-    to create the gate_state, as it will
-    not preserve the gradient.
-    """
-    if isinstance(gate_state, torch.Tensor):
-        return gate_state
-    else:
-        return torch.stack(
-            [gradsafe_convert_to_tensor(row) for row in gate_state]
-        )
-
-
+#def gradsafe_convert_to_tensor(gate_state):
+#    """
+#    We cannot apply torch.Tensor
+#    to create the gate_state, as it will
+#    not preserve the gradient.
+#    """
+#    if isinstance(gate_state, torch.Tensor):
+#        return gate_state
+#    else:
+#        return torch.stack(
+#            [gradsafe_convert_to_tensor(row) for row in gate_state]
+#        )
+#
+#
 #
 # class UX(Gate_1q):
 #    def control(self, t):

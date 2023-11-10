@@ -1,8 +1,8 @@
 from config import device
+import config
 import torch
 import argparse
-from gates import UX, UZZ
-from differentiable_circuit import UnitaryCircuit, Params, overlap
+from differentiable_circuit import Params, overlap
 from typing import Literal
 import examples
 
@@ -12,16 +12,17 @@ def get_state(L, seed=0):
     x = torch.normal(
         0, 1, (2, N), generator=torch.Generator().manual_seed(seed)
     )
-    x = torch.complex(x[0], x[1]).to(torch.complex64)
+    x = torch.complex(x[0], x[1]).to(config.tcomplex)
     x = x.to(device)
     x = x / torch.norm(x)
     return x
 
-
 def test_apply(L):
+    print("test apply")
+
     tau, zeta = Params.def_param(0.1, 0.2)
     C, *_ = examples.Block(L, 2, 1.0, tau, zeta)
-    x = get_state(L)
+    x = examples.zero_state(L)
 
     y = C.apply(x)
     z = C.apply(y, reverse=True)
@@ -33,8 +34,8 @@ def test_apply(L):
 def test_grad(L, depth):
     def getcircuitwithparams(tau, zeta):
         C = examples.Block(L, depth, 1.0, tau, zeta)
-        x = get_state(L, seed=0)
-        target = get_state(L, seed=1)
+        x = examples.zero_state(L)
+        target = get_state(L, seed=0)
 
         def Obs(y):
             return target * overlap(target, y)
