@@ -6,6 +6,6 @@ tcomplex = torch.complex64
 
 
 def get_default_gate_implementation():
-    import gate_implementations
+    import gate_implementation
 
-    return gate_implementations.TorchGate()
+    return gate_implementation.TorchGate()

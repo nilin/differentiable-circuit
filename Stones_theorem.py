@@ -1,5 +1,5 @@
 from differentiable_gate import Scalar, Gate, CleanSlateAncilla
-from differentiable_circuit import Circuit, Params, overlap, State, Channel
+from differentiable_circuit import Circuit, Params, cdot, State, Channel
 from typing import Callable, List
 import copy
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ from differentiable_gate import (
     State,
 )
 import numpy as np
-from gate_implementations import torchcomplex
+from gate_implementation import torchcomplex
 
 
 """Define gates as Hamiltonian evolution"""

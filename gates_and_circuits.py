@@ -1,13 +1,13 @@
 from differentiable_gate import Scalar, Gate, CleanSlateAncilla
 from typing import Callable, List
-from differentiable_circuit import Circuit, Params, overlap, State, Channel
+from differentiable_circuit import Circuit, Params, cdot, State, Channel
 from dataclasses import dataclass
 import torch
 import config
 import torch
 from Stones_theorem import Exp_iH, Hamiltonian
 import numpy as np
-from gate_implementations import torchcomplex
+from gate_implementation import torchcomplex
 
 
 def convert(matrix):
@@ -40,11 +40,18 @@ class UA(Exp_iH):
     H = XZ = convert(np.kron(X, Z))
 
 
+def bricklayer(a, b):
+    """Assumes bricks of size 2. b is the rightmost endpoint (i+1<b)."""
+    l1 = list(range(a, b - 1, 2))
+    l2 = list(range(a + 1, b - 1, 2))
+    return l1 + l2
+
+
 class TFIM(Hamiltonian):
     def __init__(self, endpoints, coupling: float = 1.0):
         a, b = endpoints
         self.coupling = coupling
-        self.Ising = [UZZ(i, i + 1) for i in range(a, b - 1)]
+        self.Ising = [UZZ(i, i + 1) for i in bricklayer(a, b)]
         self.transverse = [UX(i, strength=self.coupling) for i in range(a, b)]
         self.terms = self.Ising + self.transverse
 
