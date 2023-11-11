@@ -10,7 +10,7 @@ from differentiable_gate import (
     State,
 )
 import numpy as np
-from gate_implementation import torchcomplex
+from datatypes import *
 
 
 """Define gates as Hamiltonian evolution"""

@@ -13,11 +13,6 @@ from gate_implementation import TorchGate, EvolveDensityMatrix, GateImplementati
 from torch.nn import Parameter
 
 
-def re_implement(circuit: Circuit, implementation: GateImplementation):
-    for gate in circuit.gates:
-        gate.implementation = implementation
-
-
 class TestGrad:
     def __init__(self, n=4):
         self.params = Parameter(torch.Tensor([1.0] * 4))
@@ -43,9 +38,7 @@ class TestGrad:
     def density_matrix_grad(self):
         rho = self.psi0[:, None] * self.psi0[None, :].conj()
 
-        re_implement(self.circuit, EvolveDensityMatrix())
-        rho_out = self.circuit.apply(rho)
-        re_implement(self.circuit, TorchGate())
+        rho_out = self.circuit.apply_to_density_matrix(rho)
 
         loss = cdot(self.target, rho_out @ self.target).real
         loss.backward()

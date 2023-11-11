@@ -1,27 +1,27 @@
 import torch
-from differentiable_gate import GateImplementation
+from datatypes import GateImplementation
 from config import tcomplex
 import config
 from collections import namedtuple
 
 
-def bit_p(N, p, device):
+def bit_p(N, p):
     blocksize = N // 2 ** (p + 1)
-    arange = torch.arange(N, device=device)
+    arange = torch.arange(N, device=config.device)
     b = (arange // blocksize) % 2
     return b, blocksize
 
 
-def split_by_bit_p(N, psi, p, device):
-    b, blocksize = bit_p(N, p, device)
+def split_by_bit_p(N, p):
+    b, blocksize = bit_p(N, p)
     (_0,) = torch.where(b == 0)
     _1 = _0 + blocksize
     return _0, _1
 
 
-def split_by_bits_pq(N, psi, p, q, device):
-    bp, blocksize_p = bit_p(N, p, device)
-    bq, blocksize_q = bit_p(N, q, device)
+def split_by_bits_pq(N, p, q):
+    bp, blocksize_p = bit_p(N, p)
+    bq, blocksize_q = bit_p(N, q)
     (_00,) = torch.where((bp == 0) * (bq == 0))
     _01 = _00 + blocksize_q
     _10 = _00 + blocksize_p
@@ -30,15 +30,18 @@ def split_by_bits_pq(N, psi, p, q, device):
 
 
 class TorchGate(GateImplementation):
-    device: torch.device = torch.device(config.device)
+    @staticmethod
+    def split_by_bit_p(N, p):
+        return split_by_bit_p(N, p)
 
-    def apply_gate(self, gate, gate_state, psi):
+    @staticmethod
+    def apply_gate(gate, gate_state, psi):
         if gate.k == 1:
-            index_arrays = split_by_bit_p(len(psi), psi, gate.p, self.device)
+            index_arrays = split_by_bit_p(len(psi), gate.p)
         elif gate.k == 2:
-            index_arrays = split_by_bits_pq(len(psi), psi, gate.p, gate.q, self.device)
+            index_arrays = split_by_bits_pq(len(psi), gate.p, gate.q)
 
-        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
+        psi_out = torch.zeros_like(psi, device=config.device, dtype=tcomplex)
         if gate.diag:
             for i, I in enumerate(index_arrays):
                 psi_out[I] = gate_state[i] * psi[I]
@@ -51,15 +54,12 @@ class TorchGate(GateImplementation):
 
 
 class EvolveDensityMatrix(TorchGate):
-    device: torch.device = torch.device(config.device)
+    """
+    For testing
+    """
 
-    def apply_gate(self, gate, gate_state, rho):
-        M_rho = super().apply_gate(gate, gate_state, rho)
-        M_rho_Mt = super().apply_gate(gate, gate_state, M_rho.T.conj())
+    @staticmethod
+    def apply_gate(gate, gate_state, rho):
+        M_rho = TorchGate.apply_gate(gate, gate_state, rho)
+        M_rho_Mt = TorchGate.apply_gate(gate, gate_state, M_rho.T.conj())
         return M_rho_Mt
-
-
-def torchcomplex(x):
-    real = torch.Tensor(x.real)
-    imag = torch.Tensor(x.imag)
-    return torch.complex(real, imag)

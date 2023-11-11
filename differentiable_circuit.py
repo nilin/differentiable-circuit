@@ -1,9 +1,10 @@
-from differentiable_gate import Gate, State
+from differentiable_gate import Gate, State, Measurement
 from typing import Callable, List, Iterable
 from dataclasses import dataclass
-from gate_implementation import torchcomplex
+from gate_implementation import EvolveDensityMatrix
 import torch
 import numpy as np
+from datatypes import *
 
 
 def cdot(phi, psi):
@@ -19,17 +20,22 @@ class Params:
         return (torch.tensor(v).requires_grad_() for v in initial_values)
 
 
-"""Circuit is less general than Channel below, but we first define the unitary version for readability"""
-
-
 @dataclass
 class Circuit:
     gates: List[Gate]
 
-    def apply(self, x: State):
+    def apply(self, psi: State):
         for gate in self.gates:
-            x = gate.apply(x)
-        return x
+            psi = gate.apply(psi)
+        return psi
+
+    def apply_to_density_matrix(self, rho):
+        """for testing"""
+
+        dm_impl = EvolveDensityMatrix()
+        for gate in self.gates:
+            rho = gate.apply(rho, implementation=dm_impl)
+        return rho
 
     def optimal_control(self, psi: State, Obs: Callable[[State], State]):
         psi_t = self.apply(psi)
@@ -57,33 +63,31 @@ class Circuit:
         return X
 
 
-"""Channel generalizes Circuit to allow for measurements"""
-
 uniform01 = float
 
 
 @dataclass
 class Channel(Circuit):
     blocks: List[Circuit]
-    measurements: List[Gate]
+    measurements: List[Measurement]
 
-    def apply(self, x: State, randomness: Iterable[uniform01], register: bool = False):
+    def apply(self, psi: State, randomness: Iterable[uniform01], register: bool = False):
         outcomes = []
         p_conditional = []
         checkpoints = []
         for block, M, u in zip(self.blocks, self.measurements, randomness):
-            x = block.apply(x)
+            psi = block.apply(psi)
             if register:
-                checkpoints.append(x)
+                checkpoints.append(psi)
 
-            x, m, p = M.apply(x, u)
+            psi, m, p = M.apply(psi, u)
             outcomes.append(m)
             p_conditional.append(p)
 
         if register:
-            return x, outcomes, p_conditional, checkpoints
+            return psi, outcomes, p_conditional, checkpoints
         else:
-            return x
+            return psi
 
     def optimal_control(
         self,
@@ -107,3 +111,11 @@ class Channel(Circuit):
 
             X = block.backprop(psi, X / p)
         return X
+
+    def apply_to_density_matrix(self, rho):
+        """for testing"""
+
+        for block, M in zip(self.blocks, self.measurements):
+            rho = block.apply(rho, implementation=EvolveDensityMatrix())
+            rho = M.apply_to_density_matrix(rho)
+        return rho

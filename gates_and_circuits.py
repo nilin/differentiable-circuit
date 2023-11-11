@@ -1,15 +1,14 @@
 from differentiable_gate import Scalar, Gate
 from typing import Callable, List
-from differentiable_circuit import Circuit, Params, cdot, State, Channel
+from differentiable_circuit import Circuit, Channel
 from dataclasses import dataclass
 import torch
 import config
 import torch
 from Stones_theorem import Exp_iH, Hamiltonian
 import numpy as np
-from gate_implementation import torchcomplex
-
-uniform01 = float
+from collections import namedtuple
+from datatypes import *
 
 
 def convert(matrix):
@@ -71,51 +70,6 @@ class Lindblad(Channel):
     def __init__(self, *blocks):
         self.blocks = blocks
         self.measurements = [CleanSlateAncilla()] * len(self.blocks)
-
-
-"""Non-unitary gates"""
-
-
-class Measurement(Gate):
-    def apply(self, x: State, u: uniform01):
-        N = len(x)
-        p0 = probabilitymass(x[: N // 2]) / probabilitymass(x)
-
-        outcome = u > p0
-        return self.cut(x, outcome), outcome, (p0 if outcome == 0 else 1 - p0)
-
-    def cut(self, x: State, outcome: bool):
-        N = len(x)
-        if outcome:
-            return x[N // 2 :]
-        else:
-            return x[: N // 2]
-
-    def embed(self, x: State, outcome: bool):
-        if outcome:
-            return torch.cat((torch.zeros_like(x), x))
-        else:
-            return torch.cat((x, torch.zeros_like(x)))
-
-    def reverse(self, x: State, outcome: bool):
-        return self.embed(x, outcome)
-
-
-def probabilitymass(x):
-    return torch.sum(torch.abs(x) ** 2).real
-
-
-class CleanSlateAncilla(Measurement):
-    def apply(self, x: State, u: uniform01):
-        N = len(x)
-        p0 = probabilitymass(x[: N // 2]) / probabilitymass(x)
-
-        outcome = u > p0
-        x = self.embed(self.cut(x, outcome), 0)
-        return x, outcome, (p0 if outcome == 0 else 1 - p0)
-
-    def reverse(self, x: State, outcome: bool):
-        return self.embed(self.cut(x, 0), outcome)
 
 
 def zero_state(L):
