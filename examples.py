@@ -24,16 +24,19 @@ def convert(matrix):
 
 @dataclass
 class UX(Exp_iH, Gate_1q):
+    diag = False
     H = X = convert([[0, 1], [1, 0]])
 
 
 @dataclass
 class UZZ(Exp_iH_diag, Gate_2q_diag):
+    diag = True
     H = ZZ = convert([1, -1, -1, 1])
 
 
 @dataclass
 class UA(Exp_iH, Gate_2q):
+    diag = False
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])
     H = XZ = convert(np.kron(X, Z))

@@ -2,66 +2,50 @@ import torch
 from differentiable_gate import GateImplementation
 from config import tcomplex
 import config
+from collections import namedtuple
+
+
+def bit_p(N, p, device):
+    blocksize = N // 2 ** (p + 1)
+    arange = torch.arange(N, device=device)
+    b = (arange // blocksize) % 2
+    return b, blocksize
+
+
+def split_by_bit_p(N, psi, p, device):
+    b, blocksize = bit_p(N, p, device)
+    (_0,) = torch.where(b == 0)
+    _1 = _0 + blocksize
+    return _0, _1
+
+
+def split_by_bits_pq(N, psi, p, q, device):
+    bp, blocksize_p = bit_p(N, p, device)
+    bq, blocksize_q = bit_p(N, q, device)
+    (_00,) = torch.where((bp == 0) * (bq == 0))
+    _01 = _00 + blocksize_q
+    _10 = _00 + blocksize_p
+    _11 = _00 + (blocksize_p + blocksize_q)
+    return _00, _01, _10, _11
 
 
 class TorchGate(GateImplementation):
     device: torch.device = torch.device(config.device)
 
-    def indices(self, psi, p, onehot=False):
-        N = len(psi)
-        blocksize = N // 2 ** (p + 1)
-        arange = torch.arange(N, device=self.device)
-        b = (arange // blocksize) % 2
+    def apply_gate(self, gate, gate_state, psi):
+        if gate.k == 1:
+            index_arrays = split_by_bit_p(len(psi), psi, gate.p, self.device)
+        elif gate.k == 2:
+            index_arrays = split_by_bits_pq(len(psi), psi, gate.p, gate.q, self.device)
 
-        if onehot:
-            return b
+        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
+        if gate.diag:
+            for i, I in enumerate(index_arrays):
+                psi_out[I] = gate_state[i] * psi[I]
         else:
-            (I0,) = torch.where(b == 0)
-            I1 = I0 + blocksize
-            return I0, I1
-
-    def apply_gate_1q(self, gate, psi, p):
-        I0, I1 = self.indices(psi, p)
-
-        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
-        psi_out[I0] = gate[0, 0] * psi[I0] + gate[0, 1] * psi[I1]
-        psi_out[I1] = gate[1, 0] * psi[I0] + gate[1, 1] * psi[I1]
-
-        del psi
-        return psi_out
-
-    def apply_gate_2q(self, gate, psi, p, q):
-        bp = self.indices(psi, p, onehot=True)
-        bq = self.indices(psi, q, onehot=True)
-
-        I0 = torch.where((bp == 0) * (bq == 0))
-        I1 = torch.where((bp == 0) * (bq == 1))
-        I2 = torch.where((bp == 1) * (bq == 0))
-        I3 = torch.where((bp == 1) * (bq == 1))
-
-        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
-        for i, I in enumerate([I0, I1, I2, I3]):
-            for j, J in enumerate([I0, I1, I2, I3]):
-                if gate[i, j] != 0:
-                    psi_out[I] += gate[i, j] * psi[J]
-        del psi
-        return psi_out
-
-    def apply_gate_2q_diag(self, gate, psi, p, q):
-        bp = self.indices(psi, p, onehot=True)
-        bq = self.indices(psi, q, onehot=True)
-
-        I0 = torch.where((bp == 0) * (bq == 0))
-        I1 = torch.where((bp == 0) * (bq == 1))
-        I2 = torch.where((bp == 1) * (bq == 0))
-        I3 = torch.where((bp == 1) * (bq == 1))
-
-        psi_out = torch.zeros_like(psi, device=self.device, dtype=tcomplex)
-        psi_out[I0] = gate[0] * psi[I0]
-        psi_out[I1] = gate[1] * psi[I1]
-        psi_out[I2] = gate[2] * psi[I2]
-        psi_out[I3] = gate[3] * psi[I3]
-
+            for i, I in enumerate(index_arrays):
+                for j, J in enumerate(index_arrays):
+                    psi_out[I] += gate_state[i, j] * psi[J]
         del psi
         return psi_out
 

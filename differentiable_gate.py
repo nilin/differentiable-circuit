@@ -20,17 +20,19 @@ class GateImplementation:
 
 @dataclass(kw_only=True)
 class Gate:
+    """
+    Classes inheriting from Gate need to specify the following:
+    diag: bool
+    k: int
+    """
+
     input: Optional[Scalar] = None
     gate_implementation: GateImplementation = field(
         default_factory=config.get_default_gate_implementation
     )
 
     def apply_gate_state(self, gate_state: torch.Tensor, x: State) -> State:
-        """
-        The declaration of apply depends on the gate type (geometry, etc.),
-        not on the implementation
-        """
-        raise NotImplementedError
+        return self.gate_implementation.apply_gate(self, gate_state, x)
 
     def apply(self, x: State):
         gate_state = self.control(self.input)
@@ -74,10 +76,8 @@ class Gate:
 
 @dataclass
 class Gate_1q(Gate):
+    k = 1
     p: int
-
-    def apply_gate_state(self, gate_state, x):
-        return self.gate_implementation.apply_gate_1q(gate_state, x, self.p)
 
 
 """Types of gate geometry"""
@@ -85,23 +85,22 @@ class Gate_1q(Gate):
 
 @dataclass
 class Gate_2q(Gate):
+    k = 2
     p: int
     q: int
-
-    def apply_gate_state(self, gate_state, x):
-        return self.gate_implementation.apply_gate_2q(gate_state, x, self.p, self.q)
 
 
 @dataclass
 class Diag(Gate):
+    diag = True
+
     def adjoint(self, gate):
         return gate.conj()
 
 
 @dataclass
 class Gate_2q_diag(Gate_2q, Diag):
-    def apply_gate_state(self, gate_state, x):
-        return self.gate_implementation.apply_gate_2q_diag(gate_state, x, self.p, self.q)
+    pass
 
 
 """Non-unitary gates"""
