@@ -5,12 +5,7 @@ from dataclasses import dataclass
 import torch
 import config
 import torch
-from differentiable_gate import (
-    Gate_1q,
-    Gate_2q,
-    Gate_2q_diag,
-)
-from Stones_theorem import Exp_iH, Exp_iH_diag, Hamiltonian
+from Stones_theorem import Exp_iH, Hamiltonian
 import numpy as np
 from gate_implementations import torchcomplex
 
@@ -23,19 +18,22 @@ def convert(matrix):
 
 
 @dataclass
-class UX(Exp_iH, Gate_1q):
+class UX(Exp_iH):
+    k = 1
     diag = False
     H = X = convert([[0, 1], [1, 0]])
 
 
 @dataclass
-class UZZ(Exp_iH_diag, Gate_2q_diag):
+class UZZ(Exp_iH):
+    k = 2
     diag = True
     H = ZZ = convert([1, -1, -1, 1])
 
 
 @dataclass
-class UA(Exp_iH, Gate_2q):
+class UA(Exp_iH):
+    k = 2
     diag = False
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])

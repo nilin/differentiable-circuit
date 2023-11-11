@@ -1,6 +1,6 @@
 import config
 from typing import Callable, Tuple, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, KW_ONLY
 import torch
 from torch.autograd.functional import jacobian as torch_jacobian
 
@@ -18,7 +18,7 @@ class GateImplementation:
     apply_gate_diag: Callable[[GateState, State], State]
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Gate:
     """
     Classes inheriting from Gate need to specify the following:
@@ -26,6 +26,9 @@ class Gate:
     k: int
     """
 
+    p: Optional[int] = None
+    q: Optional[int] = None
+    _: KW_ONLY
     input: Optional[Scalar] = None
     gate_implementation: GateImplementation = field(
         default_factory=config.get_default_gate_implementation
@@ -62,45 +65,17 @@ class Gate:
         self.input = input
         return self
 
-    @staticmethod
-    def adjoint(gate_state: GateState) -> GateState:
-        inv = gate_state.conj().T
-        return inv
+    def adjoint(self, gate_state: GateState) -> GateState:
+        if self.diag:
+            return gate_state.conj()
+        else:
+            return gate_state.conj().T
 
     @staticmethod
     def complex_out_jacobian(f, t):
         real = torch_jacobian(lambda x: f(x).real, t)
         imag = torch_jacobian(lambda x: f(x).imag, t)
         return torch.complex(real, imag)
-
-
-@dataclass
-class Gate_1q(Gate):
-    k = 1
-    p: int
-
-
-"""Types of gate geometry"""
-
-
-@dataclass
-class Gate_2q(Gate):
-    k = 2
-    p: int
-    q: int
-
-
-@dataclass
-class Diag(Gate):
-    diag = True
-
-    def adjoint(self, gate):
-        return gate.conj()
-
-
-@dataclass
-class Gate_2q_diag(Gate_2q, Diag):
-    pass
 
 
 """Non-unitary gates"""

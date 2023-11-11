@@ -7,7 +7,6 @@ import torch
 import torch
 from differentiable_gate import (
     Gate,
-    Diag,
     State,
 )
 import numpy as np
@@ -25,28 +24,21 @@ class Exp_iH(Gate):
         self.compile()
 
     def compile(self):
-        eigs, U = np.linalg.eigh(self.H)
-        self.eigs = torchcomplex(eigs)
-        self.U = torchcomplex(U)
+        if not self.diag:
+            eigs, U = np.linalg.eigh(self.H)
+            self.eigs = torchcomplex(eigs)
+            self.U = torchcomplex(U)
 
     def control(self, t):
-        D = torch.exp(-1j * t * self.strength * self.eigs)
-        gate_state = self.U @ (D[:, None] * self.U.T)
-        return gate_state
+        if self.diag:
+            return torch.exp(-1j * t * self.strength * self.H)
+        else:
+            D = torch.exp(-1j * t * self.strength * self.eigs)
+            gate_state = self.U @ (D[:, None] * self.U.T)
+            return gate_state
 
     def as_observable(self, psi: State):
         self.apply_gate_state(self.H, psi)
-
-
-class Exp_iH_diag(Exp_iH, Diag):
-    def compile(self):
-        pass
-
-    def control(self, t):
-        return torch.exp(-1j * t * self.strength * self.H)
-
-
-"""Define a Hamiltonian as a sum of local terms (named according to their unitary evolution)"""
 
 
 @dataclass
