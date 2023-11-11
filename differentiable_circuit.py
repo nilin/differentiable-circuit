@@ -1,5 +1,5 @@
-from differentiable_gate import Gate, State, Measurement, uniform01
-from typing import Callable, List
+from differentiable_gate import Gate, State
+from typing import Callable, List, Iterable
 from dataclasses import dataclass
 from gate_implementation import torchcomplex
 import torch
@@ -26,12 +26,12 @@ class Params:
 class Circuit:
     gates: List[Gate]
 
-    def apply(self, x: State, **kw):
+    def apply(self, x: State):
         for gate in self.gates:
             x = gate.apply(x)
         return x
 
-    def optimal_control(self, psi: State, Obs: Callable[[State], State], **kw):
+    def optimal_control(self, psi: State, Obs: Callable[[State], State]):
         psi_t = self.apply(psi)
         Xt = Obs(psi_t)
         E = Xt.conj().dot(psi_t).real
@@ -59,13 +59,15 @@ class Circuit:
 
 """Channel generalizes Circuit to allow for measurements"""
 
+uniform01 = float
+
 
 @dataclass
 class Channel(Circuit):
     blocks: List[Circuit]
-    measurements: List[Measurement]
+    measurements: List[Gate]
 
-    def apply(self, x: State, randomness: List[uniform01], register: bool = False):
+    def apply(self, x: State, randomness: Iterable[uniform01], register: bool = False):
         outcomes = []
         p_conditional = []
         checkpoints = []
@@ -87,7 +89,7 @@ class Channel(Circuit):
         self,
         psi: State,
         Obs: Callable[[State], State],
-        randomness,
+        randomness: Iterable[uniform01],
     ):
         psi_t, o, p, ch = self.apply(psi, randomness, register=True)
         Xt = Obs(psi_t)

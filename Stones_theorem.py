@@ -1,4 +1,4 @@
-from differentiable_gate import Scalar, Gate, CleanSlateAncilla
+from differentiable_gate import Scalar, Gate
 from differentiable_circuit import Circuit, Params, cdot, State, Channel
 from typing import Callable, List
 import copy

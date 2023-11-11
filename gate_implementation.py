@@ -50,6 +50,15 @@ class TorchGate(GateImplementation):
         return psi_out
 
 
+class EvolveDensityMatrix(TorchGate):
+    device: torch.device = torch.device(config.device)
+
+    def apply_gate(self, gate, gate_state, rho):
+        M_rho = super().apply_gate(gate, gate_state, rho)
+        M_rho_Mt = super().apply_gate(gate, gate_state, M_rho.T.conj())
+        return M_rho_Mt
+
+
 def torchcomplex(x):
     real = torch.Tensor(x.real)
     imag = torch.Tensor(x.imag)
