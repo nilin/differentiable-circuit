@@ -116,6 +116,6 @@ class Channel(Circuit):
         """for testing"""
 
         for block, M in zip(self.blocks, self.measurements):
-            rho = block.apply(rho, implementation=EvolveDensityMatrix())
+            rho = block.apply_to_density_matrix(rho)
             rho = M.apply_to_density_matrix(rho)
         return rho

@@ -70,9 +70,11 @@ class Gate:
         return torch.complex(real, imag)
 
 
+@dataclass
 class Measurement(Gate):
     implementation = config.get_default_gate_implementation()
     outcome_tuple = namedtuple("Measurement", ["psi", "outcome", "p_outcome"])
+    p: int
 
     def measure(self, psi: State, u: uniform01, normalize=True):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
@@ -91,8 +93,7 @@ class Measurement(Gate):
     def partial_trace(self, rho: DensityMatrix):
         """used for testing"""
 
-        N = len(rho)
-        _0, _1 = self.implementation.split_by_bit_p(N, self.p)
+        _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
         return rho[_0, _0] + rho[_1, _1]
 
 
@@ -105,7 +106,7 @@ class CleanSlateAncilla(Measurement):
         psi_post, outcome, p_outcome = self.measure(psi, u, **kwargs)
 
         psi_out = torch.zeros_like(psi)
-        _0, _1 = split_by_bit_p(len(psi), self.p)
+        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
         psi_out[_0] = psi_post
         return self.outcome_tuple(psi_out, outcome, p_outcome)
 
@@ -115,7 +116,7 @@ class CleanSlateAncilla(Measurement):
     def apply_to_density_matrix(self, rho: State):
         self.partial_trace(rho)
         rho_out = torch.zeros_like(rho)
-        _0, _1 = split_by_bit_p(len(rho), self.p)
+        _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
         rho_out[_0, _0] = self.partial_trace(rho)
         return rho_out
 

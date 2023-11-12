@@ -46,7 +46,7 @@ class TestGrad:
 
 
 class TestGradChannel(TestGrad):
-    def __init__(self, n):
+    def __init__(self, n=3):
         self.params = Parameter(torch.Tensor([1.0] * 4))
         a, b, c, d = self.params
         B1 = Block(n, a, b)
@@ -80,6 +80,8 @@ if __name__ == "__main__":
     print(TestGrad().optimal_control_grad())
     print(TestGrad().auto_grad())
     print(TestGrad().density_matrix_grad())
+
+    print(TestGradChannel().density_matrix_grad())
 
     # print("\nquantum control gradient  ", test_grad_unitary.get_grad())
     # print("\nsanity check (param shift)", test_grad_unitary.get_grad_paramshift())
