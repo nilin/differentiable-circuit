@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import torch
 import config
 import torch
-from Stones_theorem import Exp_iH, Hamiltonian
+from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm
 import numpy as np
 from collections import namedtuple
 from datatypes import *
@@ -19,21 +19,21 @@ def convert(matrix):
 
 
 @dataclass
-class UX(Exp_iH):
+class X(HamiltonianTerm):
     k = 1
     diag = False
     H = X = convert([[0, 1], [1, 0]])
 
 
 @dataclass
-class UZZ(Exp_iH):
+class ZZ(HamiltonianTerm):
     k = 2
     diag = True
     H = ZZ = convert([1, -1, -1, 1])
 
 
 @dataclass
-class UA(Exp_iH):
+class A(HamiltonianTerm):
     k = 2
     diag = False
     X = np.array([[0, 1], [1, 0]])
@@ -42,7 +42,11 @@ class UA(Exp_iH):
 
 
 def bricklayer(a, b):
-    """Assumes bricks of size 2. b is the rightmost endpoint (i+1<b)."""
+    """Assumes bricks of size 2.
+    Input b is where the last brick ends
+    (not where the last brick starts).
+    """
+
     l1 = list(range(a, b - 1, 2))
     l2 = list(range(a + 1, b - 1, 2))
     return l1 + l2
@@ -52,8 +56,8 @@ class TFIM(Hamiltonian):
     def __init__(self, endpoints, coupling: float = 1.0):
         a, b = endpoints
         self.coupling = coupling
-        self.Ising = [UZZ(i, i + 1) for i in bricklayer(a, b)]
-        self.transverse = [UX(i, strength=self.coupling) for i in range(a, b)]
+        self.Ising = [ZZ(i, i + 1) for i in bricklayer(a, b)]
+        self.transverse = [X(i, strength=self.coupling) for i in range(a, b)]
         self.terms = self.Ising + self.transverse
 
     def TrotterSuzuki(self, tau: Scalar, steps: int):
@@ -63,7 +67,9 @@ class TFIM(Hamiltonian):
 class Block(Circuit):
     def __init__(self, L, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
         tfim = TFIM((1, L))
-        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [UA(0, 1, input=zeta)]
+        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [
+            Exp_i(A(0, 1)).set_input(zeta)
+        ]
 
 
 class Lindblad(Channel):

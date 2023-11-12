@@ -6,6 +6,7 @@ GateState = torch.Tensor
 Scalar = torch.Tensor
 ControlParams = Tuple[torch.Tensor]
 uniform01 = float
+ignore = Any
 
 """density matrix used for testing"""
 DensityMatrix = torch.Tensor

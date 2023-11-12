@@ -55,9 +55,7 @@ class Channel(Circuit):
     blocks: List[Circuit]
     measurements: List[Measurement]
 
-    def apply(
-        self, psi: State, randomness: Iterable[uniform01], register: bool = False
-    ):
+    def apply(self, psi: State, randomness: Iterable[uniform01], register: bool = False):
         outcomes = []
         p_conditional = []
         checkpoints = []
@@ -68,7 +66,7 @@ class Channel(Circuit):
 
             psi, m, p = M.apply(psi, u)
             outcomes.append(m)
-            p_conditional.append(p)
+            p_conditional.append(p.cpu())
 
         if register:
             return psi, outcomes, p_conditional, checkpoints
@@ -93,7 +91,7 @@ class Channel(Circuit):
             m = outcomes.pop()
             psi = checkpoints.pop()
             X = M.reverse(X, m)
-            X = block.backprop(psi, X / p)
+            X = block.backprop(psi, X / p.to(X.device))
         return X
 
     def apply_to_density_matrix(self, rho):

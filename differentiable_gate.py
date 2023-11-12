@@ -66,6 +66,17 @@ class Gate:
         else:
             return gate_state.conj().T
 
+    def geometry_like(self, gate: "Gate"):
+        self.diag = gate.diag
+        self.k = gate.k
+
+        if self.k == 1:
+            self.p = gate.p
+
+        if self.k == 2:
+            self.p = gate.p
+            self.q = gate.q
+
     @staticmethod
     def complex_out_jacobian(f, t):
         real = torch_jacobian(lambda x: f(x).real, t)
