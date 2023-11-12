@@ -3,10 +3,11 @@ import config
 import numpy as np
 import torch
 import argparse
-from differentiable_circuit import Params, cdot, Circuit, squared_overlap
+from differentiable_circuit import cdot, Circuit, squared_overlap
 from typing import Literal
 from typing import List, Callable
 import gates_and_circuits
+from functools import partial
 from gates_and_circuits import Block, Lindblad, zero_state
 import copy
 from gate_implementation import TorchGate, EvolveDensityMatrix, GateImplementation
@@ -23,11 +24,11 @@ class TestGrad:
         self.psi0 = zero_state(n)
         self.target = zero_state(n)
 
-    def optimal_control_grad(self):
+    def optimal_control_grad(self, **kwargs):
         def Obs(y):
             return self.target * cdot(self.target, y)
 
-        self.circuit.optimal_control(self.psi0, Obs)
+        self.circuit.optimal_control(self.psi0, Obs, **kwargs)
         return self.params.grad
 
     def auto_grad(self):
@@ -55,11 +56,18 @@ class TestGradChannel(TestGrad):
         self.psi0 = zero_state(n)
         self.target = zero_state(n)
 
+    def optimal_control_grad(self, randomness):
+        def Obs(y):
+            return self.target * cdot(self.target, y)
 
-def average(get_grad, n):
+        self.circuit.optimal_control(self.psi0, Obs, randomness=randomness)
+        return self.params.grad
+
+
+def average(get_grad, nparams, samples):
     from tqdm import tqdm
 
-    randomness = np.random.uniform(0, 1, (n, 2))
+    randomness = np.random.uniform(0, 1, (samples, nparams))
     sum = 0
     # for i, rand in tqdm(enumerate(randomness)):
     for i, rand in enumerate(randomness):
@@ -68,7 +76,7 @@ def average(get_grad, n):
         if i % 100 == 0:
             print(sum / (i + 1))
 
-    return sum / n
+    return sum / samples
 
 
 if __name__ == "__main__":
@@ -82,6 +90,11 @@ if __name__ == "__main__":
     print(TestGrad().density_matrix_grad())
 
     print(TestGradChannel().density_matrix_grad())
+
+    def estimate(randomness):
+        return TestGradChannel().optimal_control_grad(randomness=randomness)
+
+    print(average(estimate, 4, 1000))
 
     # print("\nquantum control gradient  ", test_grad_unitary.get_grad())
     # print("\nsanity check (param shift)", test_grad_unitary.get_grad_paramshift())

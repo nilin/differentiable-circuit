@@ -26,7 +26,10 @@ class Gate:
         return self.apply_gate_state(gate_state, psi, **kwargs)
 
     def apply_gate_state(
-        self, gate_state: GateState, psi: State, implementation: GateImplementation = None
+        self,
+        gate_state: GateState,
+        psi: State,
+        implementation: GateImplementation = None,
     ):
         if implementation is None:
             return self.implementation.apply_gate(self, gate_state, psi)
@@ -97,10 +100,6 @@ class Measurement(Gate):
         return rho[_0, _0] + rho[_1, _1]
 
 
-def probabilitymass(x):
-    return torch.sum(torch.abs(x) ** 2).real
-
-
 class CleanSlateAncilla(Measurement):
     def apply(self, psi: State, u: uniform01, **kwargs):
         psi_post, outcome, p_outcome = self.measure(psi, u, **kwargs)
@@ -110,8 +109,11 @@ class CleanSlateAncilla(Measurement):
         psi_out[_0] = psi_post
         return self.outcome_tuple(psi_out, outcome, p_outcome)
 
-    def reverse(self, x: State, outcome: bool):
-        return self.embed(self.project(x, 0), outcome)
+    def reverse(self, psi: State, outcome: bool):
+        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
+        psi_out = torch.zeros_like(psi)
+        psi_out[[_0, _1][outcome]] = psi[_0]
+        return psi_out
 
     def apply_to_density_matrix(self, rho: State):
         self.partial_trace(rho)

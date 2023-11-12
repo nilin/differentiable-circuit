@@ -1,5 +1,5 @@
 from differentiable_gate import Scalar, Gate
-from differentiable_circuit import Circuit, Params, cdot, State, Channel
+from differentiable_circuit import Circuit, cdot, State, Channel
 from typing import Callable, List
 import copy
 from dataclasses import dataclass

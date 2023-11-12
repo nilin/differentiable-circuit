@@ -69,7 +69,7 @@ class Block(Circuit):
 class Lindblad(Channel):
     def __init__(self, *blocks):
         self.blocks = blocks
-        self.measurements = [CleanSlateAncilla()] * len(self.blocks)
+        self.measurements = [CleanSlateAncilla(0)] * len(self.blocks)
 
 
 def zero_state(L):

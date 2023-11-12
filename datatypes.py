@@ -19,3 +19,15 @@ def torchcomplex(x):
     real = torch.Tensor(x.real)
     imag = torch.Tensor(x.imag)
     return torch.complex(real, imag)
+
+
+def cdot(phi, psi):
+    return phi.conj().dot(psi)
+
+
+def squared_overlap(phi, psi):
+    return torch.abs(cdot(phi, psi)) ** 2
+
+
+def probabilitymass(x):
+    return torch.sum(torch.abs(x) ** 2).real

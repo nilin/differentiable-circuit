@@ -7,19 +7,6 @@ import numpy as np
 from datatypes import *
 
 
-def cdot(phi, psi):
-    return phi.conj().dot(psi)
-
-
-def squared_overlap(phi, psi):
-    return torch.abs(cdot(phi, psi)) ** 2
-
-
-class Params:
-    def def_param(self, *initial_values):
-        return (torch.tensor(v).requires_grad_() for v in initial_values)
-
-
 @dataclass
 class Circuit:
     gates: List[Gate]
@@ -63,15 +50,14 @@ class Circuit:
         return X
 
 
-uniform01 = float
-
-
 @dataclass
 class Channel(Circuit):
     blocks: List[Circuit]
     measurements: List[Measurement]
 
-    def apply(self, psi: State, randomness: Iterable[uniform01], register: bool = False):
+    def apply(
+        self, psi: State, randomness: Iterable[uniform01], register: bool = False
+    ):
         outcomes = []
         p_conditional = []
         checkpoints = []
@@ -102,13 +88,11 @@ class Channel(Circuit):
         return E, self.backprop(psi_t, Xt, o, p, ch)
 
     def backprop(self, psi, X, outcomes, p_conditional, checkpoints):
-        ps = torch.cumprod(torch.stack(p_conditional), 0)
-
+        ps = torch.cumprod(torch.stack([torch.tensor(1.0)] + p_conditional), 0)
         for block, M, p in reversed(list(zip(self.blocks, self.measurements, ps))):
             m = outcomes.pop()
             psi = checkpoints.pop()
             X = M.reverse(X, m)
-
             X = block.backprop(psi, X / p)
         return X
 
