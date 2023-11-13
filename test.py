@@ -13,6 +13,9 @@ from examples import Block, Lindblad, zero_state
 import copy
 from gate_implementation import TorchGate, EvolveDensityMatrix, GateImplementation
 from torch.nn import Parameter, ParameterList
+from torch.utils import _pytree
+from scipy.stats import bootstrap
+from datatypes import *
 
 
 class TestGrad:
@@ -96,21 +99,39 @@ class TestGradChannel(TestGrad):
         return expectation.cpu(), [p.grad for p in self.params]
 
 
-def average(get_grad, nparams, samples):
-    from tqdm import tqdm
+# def average(get_grad, nparams, samples):
+#    randomness = np.random.uniform(0, 1, (samples, nparams))
+#    sum_e = 0
+#    sum_grad = [0] * nparams
+#
+#    for i, rand in enumerate(randomness):
+#        e, grad = get_grad(randomness=rand)
+#        sum_e += e
+#        sum_grad = [s + g for s, g in zip(sum_grad, grad)]
+#
+#    return sum_e / samples, [s / samples for s in sum_grad]
 
+
+def sample(get_grad, get_stats, nparams, samples):
     randomness = np.random.uniform(0, 1, (samples, nparams))
-    sum_e = 0
-    sum_grad = [0] * nparams
-    # for i, rand in tqdm(enumerate(randomness)):
-    for i, rand in enumerate(randomness):
-        e, grad = get_grad(randomness=rand)
-        sum_e += e
-        sum_grad = [s + g for s, g in zip(sum_grad, grad)]
-        if i % 100 == 0:
-            print(sum_e / (i + 1), [s / (i + 1) for s in sum_grad])
+    data = []
 
-    return sum_e / samples, [s / samples for s in sum_grad]
+    for i, rand in enumerate(randomness):
+        data.append(get_grad(randomness=rand))
+        if (i + 1) % 100 == 0:
+            print(get_stats(data))
+
+    return data
+
+
+def get_stats(data):
+    # data = stack_pytrees(data)
+    # return _pytree.tree_map(lambda x: np.mean(x).round(3), data)
+
+    table = [_pytree.tree_flatten(datapt)[0] for datapt in data]
+    columns = [torch.Tensor(col).detach().cpu().numpy() for col in zip(*table)]
+    means = [np.mean(col).round(3) for col in columns]
+    return means
 
 
 if __name__ == "__main__":
@@ -126,6 +147,8 @@ if __name__ == "__main__":
     print(TestGrad().paramshift_grad())
 
     print("\ntest channel")
+
+    print("density matrix")
     print(TestGradChannel().density_matrix_grad())
 
     print("\nquantum control")
@@ -133,14 +156,14 @@ if __name__ == "__main__":
     def estimate(randomness):
         return TestGradChannel().optimal_control_grad(randomness=randomness)
 
-    print(average(estimate, 4, 1000))
+    sample(estimate, get_stats, 4, 10000)
 
     print("\nparam shift")
 
     def estimate(randomness):
         return TestGradChannel().paramshift_grad(randomness=randomness)
 
-    print(average(estimate, 4, 1000))
+    sample(estimate, get_stats, 4, 1000)
 
     # print("\nquantum control gradient  ", test_grad_unitary.get_grad())
     # print("\nsanity check (param shift)", test_grad_unitary.get_grad_paramshift())
