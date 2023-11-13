@@ -130,6 +130,7 @@ if __name__ == "__main__":
     compare(ref, testgrad.paramshift_grad(), "method: param shift")
 
     print("\nTest channel")
+    np.random.seed(0)
 
     testgradchannel = TestGradChannel(n)
     print("reference method: autograd for density matrix")
