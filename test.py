@@ -68,26 +68,32 @@ class TestGrad:
 class TestGradChannel(TestGrad):
     def __init__(self, n=3):
         self.n = n
+
         initial_params = [1.0] * 4
         self.params = ParameterList([Parameter(torch.tensor(p)) for p in initial_params])
         a, b, c, d = self.params
         B1 = Block(self.n, a, b)
         B2 = Block(self.n, c, d)
 
-        self.circuit = Lindblad(B1, B2)
+        self.circuit = Channel(
+            B1.gates + [CleanSlateAncilla(0)] + B2.gates + [CleanSlateAncilla(0)]
+        )
         self.psi0 = zero_state(self.n)
         self.target = zero_state(self.n)
 
-        # self.circuit = Channel(blocks=[B1, B2], measurements=[NoMeasurement()] * 2)
-        # self.psi0 = zero_state(n)
-        # self.target = zero_state(n)
+        # self.n = n
+        # self.circuit = Lindblad(self.n, 2)
+        # self.params = ParameterList(
+        #    [
+        #        self.circuit.parameters.taus[0],
+        #        self.circuit.parameters.zetas[0],
+        #        self.circuit.parameters.taus[1],
+        #        self.circuit.parameters.zetas[1],
+        #    ]
+        # )
 
-        # self.params = Parameter(torch.Tensor([1.0] * 2))
-        # a, b = self.params
-        # B1 = Block(n, a, b)
-        # self.circuit = Channel(blocks=[B1], measurements=[CleanSlateAncilla(0)])
-        # self.psi0 = zero_state(n)
-        # self.target = zero_state(n)
+        # self.psi0 = zero_state(self.n)
+        # self.target = zero_state(self.n)
 
     def optimal_control_grad(self, randomness):
         def Obs(y):
@@ -156,7 +162,7 @@ if __name__ == "__main__":
     def estimate(randomness):
         return TestGradChannel().optimal_control_grad(randomness=randomness)
 
-    sample(estimate, get_stats, 4, 10000)
+    sample(estimate, get_stats, 4, 1000)
 
     print("\nparam shift")
 

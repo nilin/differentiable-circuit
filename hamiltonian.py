@@ -1,5 +1,5 @@
 from differentiable_gate import Scalar, Gate
-from differentiable_circuit import Circuit, cdot, State, Channel
+from differentiable_circuit import Circuit, cdot, State
 from typing import Callable, List
 import copy
 from dataclasses import dataclass
@@ -53,6 +53,8 @@ class Hamiltonian:
 
 
 class Exp_i(Gate):
+    unitary = True
+
     def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar, speed: float = 1.0):
         self.hamiltonian = hamiltonian
         self.input = T

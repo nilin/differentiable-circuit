@@ -43,7 +43,7 @@ class Gate:
         gate_state = self.adjoint(gate_state)
         return self.apply_gate_state(gate_state, psi)
 
-    def dgate_state(self, reverse) -> GateState:
+    def dgate_state(self, reverse=False) -> GateState:
         dU = self.complex_out_jacobian(self.control, self.input)
         if reverse:
             return self.adjoint(dU)
@@ -88,9 +88,13 @@ class Gate:
 
 @dataclass
 class Measurement(Gate):
+    unitary = False
     implementation = config.get_default_gate_implementation()
     outcome_tuple = namedtuple("Measurement", ["psi", "outcome", "p_outcome"])
     p: int
+
+    def apply(self, psi: State, u: uniform01, normalize=True):
+        return self.measure(psi, u, normalize=normalize)
 
     def measure(self, psi: State, u: uniform01, normalize=True):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
@@ -105,6 +109,16 @@ class Measurement(Gate):
             psi_post = psi[indices]
 
         return self.outcome_tuple(psi_post, outcome, p_outcome)
+
+    def reverse(self, psi: State, outcome: bool):
+        N = 2 * len(psi)
+        _0, _1 = self.implementation.split_by_bit_p(N, self.p)
+        psi_out = torch.zeros(N, dtype=psi.dtype, device=psi.device)
+        psi_out[[_0, _1][outcome]] += psi
+        return psi_out
+
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        return self.partial_trace(rho)
 
     def partial_trace(self, rho: DensityMatrix):
         """used for testing"""
@@ -150,3 +164,20 @@ class NoMeasurement(Measurement):
 
     def apply_to_density_matrix(self, rho: State):
         return rho
+
+
+@dataclass
+class Add_0_Qubit(Measurement):
+    p = 0
+
+    def apply(self, psi: State, **kwargs):
+        return self.outcome_tuple(
+            torch.cat([psi, torch.zeros_like(psi)]), 0, torch.tensor(1.0)
+        )
+
+    def reverse(self, psi: State, outcome: bool):
+        return psi[: len(psi) // 2]
+
+    def apply_to_density_matrix(self, rho: State):
+        block = torch.zeros_like(rho)
+        return torch.cat([torch.cat([rho, block], 1), torch.cat([block, block], 1)])

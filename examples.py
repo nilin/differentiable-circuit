@@ -1,10 +1,11 @@
-from differentiable_gate import Scalar, Gate, CleanSlateAncilla
+from differentiable_gate import Scalar, Gate, CleanSlateAncilla, Add_0_Qubit, Measurement
 from typing import Callable, List
 from differentiable_circuit import Circuit, Channel
 from dataclasses import dataclass
 import torch
 import config
 import torch
+from torch.nn import Parameter, ParameterList, ParameterDict
 from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm
 import numpy as np
 from collections import namedtuple
@@ -65,15 +66,37 @@ class TFIM(Hamiltonian):
 
 
 class Block(Circuit):
-    def __init__(self, L, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
-        tfim = TFIM((1, L))
+    def __init__(self, n1, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
+        tfim = TFIM((1, n1))
         self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [Exp_i(A(0, 1), zeta)]
 
 
 class Lindblad(Channel):
-    def __init__(self, *blocks):
-        self.blocks = blocks
-        self.measurements = [CleanSlateAncilla(0)] * len(self.blocks)
+    def __init__(self, n, l, trottersteps: int = 2):
+        self.gates = []
+        tfim = TFIM((1, n))
+
+        self.parameters = ParameterDict(
+            dict(
+                taus=Parameter(torch.tensor([1.0] * l)),
+                zetas=Parameter(torch.tensor([1.0] * l)),
+            )
+        )
+
+        for tau, zeta in zip(self.parameters.taus, self.parameters.zetas):
+            self.gates += tfim.TrotterSuzuki(tau, trottersteps)
+            self.gates += [Add_0_Qubit()]
+            self.gates += [Exp_i(A(0, 1), zeta)]
+            self.gates += [Measurement(0)]
+
+
+# class Lindblad(Channel):
+#    def __init__(self, *blocks):
+#        self.gates=[]
+#        for block in blocks:
+#            self.gates=self.gates+block.gates+[Exp_i(A(0, 1), zeta)]
+#        self.blocks = blocks
+#        self.measurements = [CleanSlateAncilla(0)] * len(self.blocks)
 
 
 def zero_state(L):
