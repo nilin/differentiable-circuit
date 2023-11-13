@@ -2,6 +2,7 @@ from differentiable_gate import *
 from typing import Callable, List
 from differentiable_circuit import Circuit, Channel
 from dataclasses import dataclass
+from datatypes import *
 import torch
 import config
 import torch
@@ -65,33 +66,27 @@ class TFIM(Hamiltonian):
         return super().TrotterSuzuki(self.transverse, self.Ising, tau, steps)
 
 
-class Block(Circuit):
-    def __init__(self, n1, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
+class Block(Channel):
+    def __init__(
+        self,
+        n1,
+        taus: List[Scalar],
+        zetas: List[Scalar],
+        trottersteps: int = 1,
+        with_reset=True,
+    ):
         tfim = TFIM((1, n1))
-        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [Exp_i(A(0, 1), zeta)]
-
-
-class Lindblad(Channel):
-    def __init__(self, n, l, trottersteps: int = 2):
         self.gates = []
-        tfim = TFIM((0, n))
-
-        self.parameters = ParameterDict(
-            dict(
-                taus=Parameter(torch.tensor([1.0] * l)),
-                zetas=Parameter(torch.tensor([1.0] * l)),
-            )
-        )
-
-        for tau, zeta in zip(self.parameters.taus, self.parameters.zetas):
+        for tau, zeta in zip(taus, zetas):
             self.gates += tfim.TrotterSuzuki(tau, trottersteps)
-            self.gates += [Add_0_Qubit()]
-            self.gates += [Exp_i(A(0, 1), zeta)]
-            self.gates += [Measurement(0)]
+            self.gates.append(Exp_i(A(0, 1), zeta))
+
+        if with_reset:
+            self.gates.append(CleanSlateAncilla(0))
 
 
 def zero_state(L):
-    x = torch.zeros(2**L).to(config.tcomplex)
+    x = torch.zeros(2**L).to(tcomplex)
     x[0] = 1
     x = x.to(config.device)
     return x
@@ -100,7 +95,7 @@ def zero_state(L):
 def Haar_state(L, seed=0):
     N = 2**L
     x = torch.normal(0, 1, (2, N), generator=torch.Generator().manual_seed(seed))
-    x = torch.complex(x[0], x[1]).to(config.tcomplex)
+    x = torch.complex(x[0], x[1]).to(tcomplex)
     x = x.to(config.device)
     x = x / torch.norm(x)
     return x

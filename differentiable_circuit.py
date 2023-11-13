@@ -17,14 +17,6 @@ class Circuit:
             psi = gate.apply(psi)
         return psi
 
-    def apply_to_density_matrix(self, rho):
-        """for testing"""
-
-        dm_impl = EvolveDensityMatrix()
-        for gate in self.gates:
-            rho = gate.apply(rho, implementation=dm_impl)
-        return rho
-
     def optimal_control(self, psi: State, Obs: Callable[[State], State]):
         psi_t = self.apply(psi)
         Xt = Obs(psi_t)
@@ -49,9 +41,19 @@ class Circuit:
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
 
+    """
+    Test utilities.
+    """
+
+    def apply_to_density_matrix(self, rho):
+        dm_impl = EvolveDensityMatrix()
+        for gate in self.gates:
+            rho = gate.apply(rho, implementation=dm_impl)
+        return rho
+
 
 class Channel(Circuit):
-    def apply(self, psi: State, randomness: Iterable[uniform01], register=False):
+    def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []
         p_conditional = []
         checkpoints = []
@@ -73,30 +75,19 @@ class Channel(Circuit):
         else:
             return psi
 
-    def apply_to_density_matrix(self, rho):
-        """for testing"""
-
-        dm_impl = EvolveDensityMatrix()
-        for gate in self.gates:
-            if gate.unitary:
-                rho = gate.apply(rho, implementation=dm_impl)
-            else:
-                rho = gate.apply_to_density_matrix(rho)
-        return rho
-
     def optimal_control(
         self,
         psi: State,
         Obs: Callable[[State], State],
-        randomness: Iterable[uniform01],
+        randomness: Iterable[uniform01] = [],
     ):
         psi_t, o, p, ch = self.apply(psi, randomness, register=True)
         Xt = Obs(psi_t)
         E = Xt.conj().dot(psi_t).real
 
-        return E, self.backprop(psi_t, Xt, o, p, ch, E)
+        return E, self.backprop(psi_t, Xt, o, p, ch)
 
-    def backprop(self, psi, X, outcomes, p_conditional, checkpoints, E):
+    def backprop(self, psi, X, outcomes, p_conditional, checkpoints):
         dE_inputs_rev = []
         inputs_rev = []
 
@@ -115,9 +106,20 @@ class Channel(Circuit):
                 m = outcomes.pop()
                 psi = checkpoints.pop()
                 p = p_conditional.pop()
-
                 X = gate.reverse(X, m) / torch.sqrt(p)
-                # X = X + E * psi / p
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
+
+    """
+    Test utilities.
+    """
+
+    def apply_to_density_matrix(self, rho):
+        dm_impl = EvolveDensityMatrix()
+        for gate in self.gates:
+            if gate.unitary:
+                rho = gate.apply(rho, implementation=dm_impl)
+            else:
+                rho = gate.apply_to_density_matrix(rho)
+        return rho

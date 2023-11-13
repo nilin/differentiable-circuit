@@ -1,3 +1,4 @@
+from config import *
 import torch
 from typing import Tuple, Callable, List, Iterable, Any
 
@@ -7,6 +8,8 @@ Scalar = torch.Tensor
 ControlParams = Tuple[torch.Tensor]
 uniform01 = float
 ignore = Any
+tcomplex = torch.complex64
+
 
 """density matrix used for testing"""
 DensityMatrix = torch.Tensor

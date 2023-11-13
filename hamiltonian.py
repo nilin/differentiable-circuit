@@ -2,6 +2,7 @@ from differentiable_gate import Scalar, Gate
 from differentiable_circuit import Circuit, cdot, State
 from typing import Callable, List
 import copy
+import config
 from dataclasses import dataclass
 import torch
 import torch
@@ -50,6 +51,16 @@ class Hamiltonian:
         U_1 = [Exp_i(H, T) for H in Layer1]
         U_2 = [Exp_i(H, T) for H in Layer2]
         return U_0 + (U_1 + U_2) * (steps - 1) + U_1 + U_0
+
+    """
+    Test utilities.
+    """
+
+    def create_dense(self, n):
+        out = 0
+        for H in self.terms:
+            out += H.create_dense(n)
+        return out
 
 
 class Exp_i(Gate):

@@ -85,6 +85,14 @@ class Gate:
         imag = torch_jacobian(lambda x: f(x).imag, t)
         return torch.complex(real, imag)
 
+    """
+    Test utilities.
+    """
+
+    def create_dense(self, n):
+        I = torch.eye(2**n, dtype=tcomplex, device=config.device)
+        return self.apply(I)
+
 
 @dataclass
 class Measurement(Gate):
@@ -95,9 +103,6 @@ class Measurement(Gate):
 
     def apply(self, psi: State, u: uniform01, normalize=True):
         return self.measure(psi, u, normalize=normalize)
-
-    def apply_to_density_matrix(self, rho: DensityMatrix):
-        return self.partial_trace(rho)
 
     def measure(self, psi: State, u: uniform01, normalize=True):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
@@ -120,9 +125,14 @@ class Measurement(Gate):
         psi_out[[_0, _1][outcome]] += psi
         return psi_out
 
-    def partial_trace(self, rho: DensityMatrix):
-        """used for testing"""
+    """
+    Test utilities.
+    """
 
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        return self.partial_trace(rho)
+
+    def partial_trace(self, rho: DensityMatrix):
         _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
         out = rho[_0][:, _0] + rho[_1][:, _1]
         return out
@@ -146,39 +156,13 @@ class CleanSlateAncilla(Measurement):
         psi_out[[_0, _1][outcome]] += psi[_0]
         return psi_out
 
+    """
+    Test utilities.
+    """
+
     def apply_to_density_matrix(self, rho: State):
         _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
         pt = self.partial_trace(rho)
         block = torch.zeros_like(pt)
         out = torch.cat([torch.cat([pt, block], 1), torch.cat([block, block], 1)])
         return out
-
-
-# @dataclass
-# class NoMeasurement(Measurement):
-#    def apply(self, psi: State, **kwargs):
-#        return self.outcome_tuple(psi, 0, torch.tensor(1.0))
-#
-#    def reverse(self, psi: State, outcome: bool):
-#        return psi
-#
-#    def apply_to_density_matrix(self, rho: State):
-#        return rho
-#
-#
-# @dataclass
-# class Add_0_Qubit(Measurement):
-#    p = 0
-#
-#    def apply(self, psi: State, **kwargs):
-#        return self.outcome_tuple(
-#            torch.cat([psi, torch.zeros_like(psi)]), 0, torch.tensor(1.0)
-#        )
-#
-#    def reverse(self, psi: State, outcome: bool):
-#        return psi[: len(psi) // 2]
-#
-#    def apply_to_density_matrix(self, rho: State):
-#        block = torch.zeros_like(rho)
-#        return torch.cat([torch.cat([rho, block], 1), torch.cat([block, block], 1)])
-#
