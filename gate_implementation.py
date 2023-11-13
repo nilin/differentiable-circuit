@@ -2,7 +2,6 @@ import torch
 from datatypes import GateImplementation
 from datatypes import tcomplex
 import config
-from collections import namedtuple
 
 
 def bit_p(N, p):

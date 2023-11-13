@@ -1,8 +1,6 @@
 from differentiable_gate import Scalar, Gate
-from differentiable_circuit import Circuit, cdot, State
-from typing import Callable, List
-import copy
-import config
+from differentiable_circuit import State
+from typing import List
 from dataclasses import dataclass
 import torch
 import torch

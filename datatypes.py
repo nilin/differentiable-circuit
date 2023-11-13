@@ -1,6 +1,6 @@
 from config import *
 import torch
-from typing import Tuple, Callable, List, Iterable, Any
+from typing import Tuple, Callable, Any
 
 State = torch.Tensor
 GateState = torch.Tensor

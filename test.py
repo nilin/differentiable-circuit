@@ -1,20 +1,11 @@
-from config import device
 import config
 import numpy as np
 import torch
 import argparse
-from differentiable_circuit import cdot, Circuit, squared_overlap, Channel
+from differentiable_circuit import cdot, squared_overlap, Channel
 from differentiable_gate import *
-from typing import Literal
-from typing import List, Callable
-import examples
-from functools import partial
 from examples import Block, zero_state
-import copy
-from gate_implementation import TorchGate, EvolveDensityMatrix, GateImplementation
 from torch.nn import Parameter, ParameterList
-from torch.utils import _pytree
-from scipy.stats import bootstrap
 from datatypes import *
 
 
@@ -113,26 +104,6 @@ def sample(get_grad, nparams, checkpoint_times):
             yield i + 1, data
 
 
-def print_stats(data):
-    shape = _pytree.tree_flatten(data[0])[1]
-    table = [_pytree.tree_flatten(datapt)[0] for datapt in data]
-    columns = [retrieve(torch.stack(col)) for col in zip(*table)]
-    means = [np.mean(col).round(4) for col in columns]
-    # bootstraps = [
-    #    bootstrap((np.array(col),), np.mean, n_resamples=1000, confidence_level=0.99)
-    #    for col in columns
-    # ]
-    # low = [b.confidence_interval.low.round(4) for b in bootstraps]
-    # high = [b.confidence_interval.high.round(4) for b in bootstraps]
-
-    print()
-    print(f"Estimate using {len(data)} samples")
-    TestGrad.print(*_pytree.tree_unflatten(means, shape))
-    # print(f"\n99% Confidence intervals (high/low: top/bottom), {len(data)} samples")
-    # print(_pytree.tree_unflatten(high, shape))
-    # print(_pytree.tree_unflatten(low, shape))
-
-
 def compare(a, b, txt):
     a, b = a[1], b[1]
     print(
@@ -143,7 +114,7 @@ def compare(a, b, txt):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
-        "--n", type=int, default=(6 if config.device.type == "cpu" else 10)
+        "--n", type=int, default=(10 if config.device.type == "cpu" else 10)
     )
     args, _ = argparser.parse_known_args()
     n = args.n

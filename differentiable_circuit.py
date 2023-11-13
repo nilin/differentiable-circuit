@@ -1,10 +1,9 @@
-from differentiable_gate import Gate, State, Measurement
+from differentiable_gate import Gate, State
 from typing import Callable, List, Iterable
 from dataclasses import dataclass
 from gate_implementation import EvolveDensityMatrix
 import torch
 from collections import deque
-import numpy as np
 from datatypes import *
 
 

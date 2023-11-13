@@ -1,15 +1,13 @@
 from differentiable_gate import *
-from typing import Callable, List
-from differentiable_circuit import Circuit, Channel
+from typing import List
+from differentiable_circuit import Channel
 from dataclasses import dataclass
 from datatypes import *
 import torch
 import config
 import torch
-from torch.nn import Parameter, ParameterList, ParameterDict
 from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm
 import numpy as np
-from collections import namedtuple
 from datatypes import *
 
 
