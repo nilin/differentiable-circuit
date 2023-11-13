@@ -119,22 +119,32 @@ if __name__ == "__main__":
     args, _ = argparser.parse_known_args()
     n = args.n
 
+    def bar():
+        print(80 * "_")
+
     print(f"\n{n} qubits")
 
-    print("\ntest unitary circuit")
+    bar()
+    print("test unitary circuit")
     testgrad = TestGrad(n)
-    print("reference method: autograd")
+    print("Computing reference using autograd")
     ref = testgrad.auto_grad()
+    print("reference method done")
+    bar()
     compare(ref, testgrad.optimal_control_grad(), "method: optimal control grad")
     compare(ref, testgrad.density_matrix_grad(), "method: density matrix autograd")
     compare(ref, testgrad.paramshift_grad(), "method: param shift")
 
-    print("\nTest channel")
+    bar()
+    print("Test channel")
     np.random.seed(0)
 
     testgradchannel = TestGradChannel(n)
-    print("reference method: autograd for density matrix")
+    print("Computing reference using autograd for density matrix")
     ref = testgradchannel.density_matrix_grad()
+
+    print("reference method done")
+    bar()
 
     print("\nMethod: Quantum control for channels")
 
