@@ -19,6 +19,8 @@ from datatypes import *
 
 
 def retrieve(x):
+    if not isinstance(x, torch.Tensor):
+        x = torch.tensor(x)
     return x.cpu().detach().numpy().round(4)
 
 
@@ -37,24 +39,22 @@ class TestGrad:
         def Obs(y):
             return self.target * cdot(self.target, y)
 
-        expectation, _ = self.circuit.optimal_control(self.psi0, Obs, **kwargs)
-        return self.format(expectation)
+        value, _ = self.circuit.optimal_control(self.psi0, Obs, **kwargs)
+        return self.reformat(value, torch.autograd.grad(value, self.params))
 
     def auto_grad(self):
-        loss = squared_overlap(self.target, self.circuit.apply(self.psi0))
-        loss.backward()
-        return self.format(loss)
+        value = squared_overlap(self.target, self.circuit.apply(self.psi0))
+        return self.reformat(value, torch.autograd.grad(value, self.params))
 
     def density_matrix_grad(self):
         rho = self.psi0[:, None] * self.psi0[None, :].conj()
         rho_out = self.circuit.apply_to_density_matrix(rho)
 
-        loss = cdot(self.target, rho_out @ self.target).real
-        loss.backward()
-        return self.format(loss)
+        value = cdot(self.target, rho_out @ self.target).real
+        return self.reformat(value, torch.autograd.grad(value, self.params))
 
     def paramshift_grad(self, e=0.01, **kwargs):
-        loss = squared_overlap(self.target, self.circuit.apply(self.psi0, **kwargs))
+        value = squared_overlap(self.target, self.circuit.apply(self.psi0, **kwargs))
         grad = []
         for i, p in enumerate(self.params):
             with torch.no_grad():
@@ -64,15 +64,12 @@ class TestGrad:
                     self.target, self.circuit.apply(self.psi0, **kwargs)
                 )
                 p.copy_(curval)
-            grad.append(((loss_p - loss) / e))
-        return self.format(loss, grad)
+            grad.append(((loss_p - value) / e).cpu())
+        return self.reformat(value, grad)
 
-    def format(self, loss, grads=None):
-        if grads is None:
-            grads = [retrieve(p.grad) for p in self.params]
-        else:
-            grads = [retrieve(g) for g in grads]
-        return {"loss": retrieve(loss), "grad": grads}
+    @staticmethod
+    def reformat(value, grad):
+        return value.cpu().detach(), np.stack([g.detach().numpy() for g in grad])
 
 
 class TestGradChannel(TestGrad):
@@ -101,70 +98,88 @@ class TestGradChannel(TestGrad):
         def Obs(y):
             return self.target * cdot(self.target, y)
 
-        expectation, _ = self.circuit.optimal_control(
-            self.psi0, Obs, randomness=randomness
-        )
-        return self.format(expectation)
+        value, _ = self.circuit.optimal_control(self.psi0, Obs, randomness=randomness)
+        return self.reformat(value, torch.autograd.grad(value, self.params))
 
 
-def sample(get_grad, print_stats, nparams, samples):
+def sample(get_grad, nparams, checkpoint_times):
+    samples = checkpoint_times[-1]
     randomness = np.random.uniform(0, 1, (samples, nparams))
     data = []
 
     for i, rand in enumerate(randomness):
         data.append(get_grad(randomness=rand))
-        if (i + 1) in [10, 100, 500, 1000, samples]:
-            print_stats(data)
-
-    return data
+        if (i + 1) in checkpoint_times:
+            yield i + 1, data
 
 
 def print_stats(data):
     shape = _pytree.tree_flatten(data[0])[1]
     table = [_pytree.tree_flatten(datapt)[0] for datapt in data]
-    columns = list(zip(*table))
+    columns = [retrieve(torch.stack(col)) for col in zip(*table)]
+    means = [np.mean(col).round(4) for col in columns]
+    # bootstraps = [
+    #    bootstrap((np.array(col),), np.mean, n_resamples=1000, confidence_level=0.99)
+    #    for col in columns
+    # ]
+    # low = [b.confidence_interval.low.round(4) for b in bootstraps]
+    # high = [b.confidence_interval.high.round(4) for b in bootstraps]
 
-    bootstraps = [
-        bootstrap((np.array(col),), np.mean, n_resamples=1000, confidence_level=0.99)
-        for col in columns
-    ]
-    low = [b.confidence_interval.low.round(4) for b in bootstraps]
-    high = [b.confidence_interval.high.round(4) for b in bootstraps]
+    print()
+    print(f"Estimate using {len(data)} samples")
+    TestGrad.print(*_pytree.tree_unflatten(means, shape))
+    # print(f"\n99% Confidence intervals (high/low: top/bottom), {len(data)} samples")
+    # print(_pytree.tree_unflatten(high, shape))
+    # print(_pytree.tree_unflatten(low, shape))
 
-    print(f"\n99% Confidence intervals (high/low: top/bottom), {len(data)} samples")
-    print(_pytree.tree_unflatten(high, shape))
-    print(_pytree.tree_unflatten(low, shape))
+
+def compare(a, b, txt):
+    a, b = a[1], b[1]
+    print(
+        f"\n{txt}\nsigned overlap in [-1,1]: {np.dot(a,b) / (np.linalg.norm(a)*np.linalg.norm(b))}"
+    )
 
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--n", type=int, default=4)
+    argparser.add_argument(
+        "--n", type=int, default=(6 if config.device.type == "cpu" else 10)
+    )
     args, _ = argparser.parse_known_args()
     n = args.n
 
-    # np.set_printoptions(precision=3, suppress=True)
+    print(f"\n{n} qubits")
 
     print("\ntest unitary circuit")
-    print(TestGrad(n).optimal_control_grad())
-    print(TestGrad(n).auto_grad())
-    print(TestGrad(n).density_matrix_grad())
-    print(TestGrad(n).paramshift_grad())
+    testgrad = TestGrad(n)
+    print("reference method: autograd")
+    ref = testgrad.auto_grad()
+    compare(ref, testgrad.optimal_control_grad(), "method: optimal control grad")
+    compare(ref, testgrad.density_matrix_grad(), "method: density matrix autograd")
+    compare(ref, testgrad.paramshift_grad(), "method: param shift")
 
-    print("\ntest channel")
+    print("\nTest channel")
 
-    print("density matrix")
-    print(TestGradChannel(n).density_matrix_grad())
+    testgradchannel = TestGradChannel(n)
+    print("reference method: autograd for density matrix")
+    ref = testgradchannel.density_matrix_grad()
 
-    print("\nquantum control")
-
-    def estimate(randomness):
-        return TestGradChannel(n).optimal_control_grad(randomness=randomness)
-
-    sample(estimate, print_stats, 4, 1000)
-
-    print("\nparam shift")
+    print("\nMethod: Quantum control for channels")
 
     def estimate(randomness):
-        return TestGradChannel(n).paramshift_grad(randomness=randomness)
+        return testgradchannel.optimal_control_grad(randomness=randomness)
 
-    sample(estimate, print_stats, 4, 1000)
+    for i, data in sample(estimate, 4, checkpoint_times=[5, 10]):
+        value = np.stack(list(zip(*data))[0]).mean()
+        grad = np.stack(list(zip(*data))[1]).mean(axis=0)
+        compare(ref, (value, grad), f"quantum control with {i} samples")
+
+    print("\nMethod: param shift")
+
+    def estimate(randomness):
+        return testgradchannel.paramshift_grad(randomness=randomness)
+
+    for i, data in sample(estimate, 4, checkpoint_times=[5, 10]):
+        value = np.stack(list(zip(*data))[0]).mean()
+        grad = np.stack(list(zip(*data))[1]).mean(axis=0)
+        compare(ref, (value, grad), f"parameter shift with {i}x{len(grad)} passes")
