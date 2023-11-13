@@ -67,9 +67,7 @@ class TFIM(Hamiltonian):
 class Block(Circuit):
     def __init__(self, L, tau: Scalar, zeta: Scalar, trottersteps: int = 2):
         tfim = TFIM((1, L))
-        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [
-            Exp_i(A(0, 1)).set_input(zeta)
-        ]
+        self.gates = tfim.TrotterSuzuki(tau, trottersteps) + [Exp_i(A(0, 1), zeta)]
 
 
 class Lindblad(Channel):

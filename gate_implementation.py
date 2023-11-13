@@ -44,7 +44,7 @@ class TorchGate(GateImplementation):
         psi_out = torch.zeros_like(psi, device=config.device, dtype=tcomplex)
         if gate.diag:
             for i, I in enumerate(index_arrays):
-                psi_out[I] = gate_state[i] * psi[I]
+                psi_out[I] += gate_state[i] * psi[I]
         else:
             for i, I in enumerate(index_arrays):
                 for j, J in enumerate(index_arrays):

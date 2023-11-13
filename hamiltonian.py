@@ -46,17 +46,19 @@ class Hamiltonian:
         T: Scalar,
         steps: int,
     ):
-        t = T / steps
-        U_0 = [Exp_i(H).set_input(t / 2) for H in Layer2]
-        U_1 = [Exp_i(H).set_input(t) for H in Layer1]
-        U_2 = [Exp_i(H).set_input(t) for H in Layer2]
+        U_0 = [Exp_i(H, T, 1 / (2 * steps)) for H in Layer2]
+        U_1 = [Exp_i(H, T) for H in Layer1]
+        U_2 = [Exp_i(H, T) for H in Layer2]
         return U_0 + (U_1 + U_2) * (steps - 1) + U_1 + U_0
 
 
 class Exp_i(Gate):
-    def __init__(self, hamiltonian: HamiltonianTerm):
+    def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar, speed: float = 1.0):
         self.hamiltonian = hamiltonian
-        self.geometry_like(hamiltonian)
+        self.input = T
+        self.speed = speed
+
+        self.geometry_like(self.hamiltonian)
         self.compile()
 
     def compile(self):
@@ -67,8 +69,10 @@ class Exp_i(Gate):
 
     def control(self, t):
         if self.diag:
-            return torch.exp(-1j * t * self.hamiltonian.strength * self.hamiltonian.H)
+            return torch.exp(
+                -1j * t * self.speed * self.hamiltonian.strength * self.hamiltonian.H
+            )
         else:
-            D = torch.exp(-1j * t * self.hamiltonian.strength * self.eigs)
+            D = torch.exp(-1j * t * self.speed * self.hamiltonian.strength * self.eigs)
             gate_state = self.U @ (D[:, None] * self.U.T)
             return gate_state

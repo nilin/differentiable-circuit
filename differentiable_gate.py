@@ -6,6 +6,8 @@ from torch.autograd.functional import jacobian as torch_jacobian
 from datatypes import *
 from collections import namedtuple
 
+from datatypes import GateImplementation, GateState, State
+
 
 @dataclass
 class Gate:
@@ -108,35 +110,43 @@ class Measurement(Gate):
         """used for testing"""
 
         _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
-        return rho[_0, _0] + rho[_1, _1]
+        out = rho[_0][:, _0] + rho[_1][:, _1]
+        return out
 
 
+@dataclass
 class CleanSlateAncilla(Measurement):
-    def apply(self, psi: State, u: uniform01, **kwargs):
-        psi_post, outcome, p_outcome = self.measure(psi, u, **kwargs)
+    p: int
+
+    def apply(self, psi: State, u: uniform01, normalize=True):
+        psi_post, outcome, p_outcome = self.measure(psi, u, normalize=normalize)
 
         psi_out = torch.zeros_like(psi)
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
-        psi_out[_0] = psi_post
+        psi_out[_0] += psi_post
         return self.outcome_tuple(psi_out, outcome, p_outcome)
 
     def reverse(self, psi: State, outcome: bool):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
         psi_out = torch.zeros_like(psi)
-        psi_out[[_0, _1][outcome]] = psi[_0]
+        psi_out[[_0, _1][outcome]] += psi[_0]
         return psi_out
 
     def apply_to_density_matrix(self, rho: State):
-        self.partial_trace(rho)
-        rho_out = torch.zeros_like(rho)
         _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
-        rho_out[_0, _0] = self.partial_trace(rho)
-        return rho_out
+        pt = self.partial_trace(rho)
+        block = torch.zeros_like(pt)
+        out = torch.cat([torch.cat([pt, block], 1), torch.cat([block, block], 1)])
+        return out
 
 
-class Identity(Gate):
-    def apply(self, x: State, **kwargs):
-        return x
+@dataclass
+class NoMeasurement(Measurement):
+    def apply(self, psi: State, **kwargs):
+        return self.outcome_tuple(psi, 0, torch.tensor(1.0))
 
-    def reverse(self, x: State):
-        return x
+    def reverse(self, psi: State, outcome: bool):
+        return psi
+
+    def apply_to_density_matrix(self, rho: State):
+        return rho

@@ -11,7 +11,7 @@ from datatypes import *
 class Circuit:
     gates: List[Gate]
 
-    def apply(self, psi: State):
+    def apply(self, psi: State, randomness: ignore = None):
         for gate in self.gates:
             psi = gate.apply(psi)
         return psi
@@ -24,12 +24,14 @@ class Circuit:
             rho = gate.apply(rho, implementation=dm_impl)
         return rho
 
-    def optimal_control(self, psi: State, Obs: Callable[[State], State]):
+    def optimal_control(
+        self, psi: State, Obs: Callable[[State], State], randomness: ignore = None
+    ):
         psi_t = self.apply(psi)
         Xt = Obs(psi_t)
-        E = Xt.conj().dot(psi_t).real
+        expectation = Xt.conj().dot(psi_t).real
 
-        return E, self.backprop(psi_t, Xt)
+        return expectation, self.backprop(psi_t, Xt)
 
     def backprop(self, psi, X):
         dE_inputs_rev = []
@@ -51,7 +53,7 @@ class Circuit:
 
 
 @dataclass
-class Channel(Circuit):
+class Channel:
     blocks: List[Circuit]
     measurements: List[Measurement]
 
@@ -64,7 +66,7 @@ class Channel(Circuit):
             if register:
                 checkpoints.append(psi)
 
-            psi, m, p = M.apply(psi, u)
+            psi, m, p = M.apply(psi, u=u, normalize=True)
             outcomes.append(m)
             p_conditional.append(p.cpu())
 
@@ -86,12 +88,22 @@ class Channel(Circuit):
         return E, self.backprop(psi_t, Xt, o, p, ch)
 
     def backprop(self, psi, X, outcomes, p_conditional, checkpoints):
-        ps = torch.cumprod(torch.stack([torch.tensor(1.0)] + p_conditional), 0)
-        for block, M, p in reversed(list(zip(self.blocks, self.measurements, ps))):
+        # ps = torch.cumprod(torch.stack([torch.tensor(1.0)] + p_conditional[:-1]), 0)
+        # ps = torch.cumprod(torch.stack(p_conditional), 0)
+        # for block, M, p in reversed(list(zip(self.blocks, self.measurements, ps))):
+        #    m = outcomes.pop()
+        #    psi = checkpoints.pop()
+        #    X = M.reverse(X, m)
+        #    # X = block.backprop(psi, X / p.to(X.device))
+        #    X = block.backprop(psi, X)
+
+        p = torch.prod(torch.stack(p_conditional), 0)
+        for block, M in reversed(list(zip(self.blocks, self.measurements))):
             m = outcomes.pop()
             psi = checkpoints.pop()
             X = M.reverse(X, m)
-            X = block.backprop(psi, X / p.to(X.device))
+            # X = block.backprop(psi, X / torch.sqrt(p.to(X.device)))
+            X = block.backprop(psi, X)
         return X
 
     def apply_to_density_matrix(self, rho):
