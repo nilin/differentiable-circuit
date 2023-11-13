@@ -1,4 +1,4 @@
-from differentiable_gate import Scalar, Gate, CleanSlateAncilla, Add_0_Qubit, Measurement
+from differentiable_gate import *
 from typing import Callable, List
 from differentiable_circuit import Circuit, Channel
 from dataclasses import dataclass
@@ -74,7 +74,7 @@ class Block(Circuit):
 class Lindblad(Channel):
     def __init__(self, n, l, trottersteps: int = 2):
         self.gates = []
-        tfim = TFIM((1, n))
+        tfim = TFIM((0, n))
 
         self.parameters = ParameterDict(
             dict(
@@ -88,15 +88,6 @@ class Lindblad(Channel):
             self.gates += [Add_0_Qubit()]
             self.gates += [Exp_i(A(0, 1), zeta)]
             self.gates += [Measurement(0)]
-
-
-# class Lindblad(Channel):
-#    def __init__(self, *blocks):
-#        self.gates=[]
-#        for block in blocks:
-#            self.gates=self.gates+block.gates+[Exp_i(A(0, 1), zeta)]
-#        self.blocks = blocks
-#        self.measurements = [CleanSlateAncilla(0)] * len(self.blocks)
 
 
 def zero_state(L):

@@ -115,8 +115,9 @@ class Channel(Circuit):
                 m = outcomes.pop()
                 psi = checkpoints.pop()
                 p = p_conditional.pop()
-                X = X + E * psi / p
-                X = gate.reverse(X, m)
+
+                X = gate.reverse(X, m) / torch.sqrt(p)
+                # X = X + E * psi / p
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X

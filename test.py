@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import argparse
 from differentiable_circuit import cdot, Circuit, squared_overlap, Channel
-from differentiable_gate import NoMeasurement, CleanSlateAncilla
+from differentiable_gate import *
 from typing import Literal
 from typing import List, Callable
 import examples
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     def estimate(randomness):
         return TestGradChannel().optimal_control_grad(randomness=randomness)
 
-    sample(estimate, get_stats, 4, 1000)
+    sample(estimate, get_stats, 4, 10000)
 
     print("\nparam shift")
 
