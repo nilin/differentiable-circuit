@@ -1,7 +1,6 @@
 from differentiable_gate import Gate, State
 from typing import Callable, List, Iterable
 from dataclasses import dataclass
-from gate_implementation import EvolveDensityMatrix
 import torch
 from collections import deque
 from datatypes import *
@@ -74,10 +73,6 @@ class CircuitChannel:
     """
 
     def apply_to_density_matrix(self, rho):
-        dm_impl = EvolveDensityMatrix()
         for gate in self.gates:
-            if gate.unitary:
-                rho = gate.apply(rho, implementation=dm_impl)
-            else:
-                rho = gate.apply_to_density_matrix(rho)
+            rho = gate.apply_to_density_matrix(rho)
         return rho

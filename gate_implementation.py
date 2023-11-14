@@ -50,15 +50,3 @@ class TorchGate(GateImplementation):
                     psi_out[I] += gate_state[i, j] * psi[J]
         del psi
         return psi_out
-
-
-class EvolveDensityMatrix(TorchGate):
-    """
-    For testing
-    """
-
-    @staticmethod
-    def apply_gate(gate, gate_state, rho):
-        M_rho = TorchGate.apply_gate(gate, gate_state, rho)
-        M_rho_Mt = TorchGate.apply_gate(gate, gate_state, M_rho.T.conj())
-        return M_rho_Mt

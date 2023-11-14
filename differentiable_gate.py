@@ -95,6 +95,11 @@ class Gate:
         I = torch.eye(2**n, dtype=tcomplex, device=config.device)
         return self.apply(I)
 
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        M_rho = self.apply(rho)
+        M_rho_Mt = self.apply(M_rho.T.conj())
+        return M_rho_Mt
+
 
 @dataclass
 class Measurement(Gate):
