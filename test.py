@@ -2,7 +2,7 @@ import config
 import numpy as np
 import torch
 import argparse
-from differentiable_circuit import cdot, squared_overlap, Channel
+from differentiable_circuit import cdot, squared_overlap, CircuitChannel
 from differentiable_gate import *
 from examples import Block, zero_state, TFIM
 import examples
@@ -88,7 +88,7 @@ class TestGradChannel(TestGrad):
         B1 = Block(self.H, taus1, zetas1)
         B2 = Block(self.H, taus2, zetas2)
         B3 = Block(self.H, taus3, zetas3)
-        self.circuit = Channel(B1.gates + B2.gates + B3.gates)
+        self.circuit = CircuitChannel(B1.gates + B2.gates + B3.gates)
 
         self.prepstates()
 

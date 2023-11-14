@@ -8,50 +8,9 @@ from datatypes import *
 
 
 @dataclass
-class Circuit:
+class CircuitChannel:
     gates: List[Gate]
 
-    def apply(self, psi: State):
-        for gate in self.gates:
-            psi = gate.apply(psi)
-        return psi
-
-    def optimal_control(self, psi: State, Obs: Callable[[State], State]):
-        psi_t = self.apply(psi)
-        Xt = Obs(psi_t)
-        expectation = Xt.conj().dot(psi_t).real
-
-        return expectation, self.backprop(psi_t, Xt)
-
-    def backprop(self, psi, X):
-        dE_inputs_rev = []
-        inputs_rev = []
-
-        for gate in self.gates[::-1]:
-            psi = gate.reverse(psi)
-
-            dU = gate.dgate_state()
-            dE_input = 2 * cdot(X, gate.apply_gate_state(dU, psi)).real
-            X = gate.reverse(X)
-
-            dE_inputs_rev.append(dE_input)
-            inputs_rev.append(gate.input)
-
-        torch.autograd.backward(inputs_rev, dE_inputs_rev)
-        return X
-
-    """
-    Test utilities.
-    """
-
-    def apply_to_density_matrix(self, rho):
-        dm_impl = EvolveDensityMatrix()
-        for gate in self.gates:
-            rho = gate.apply(rho, implementation=dm_impl)
-        return rho
-
-
-class Channel(Circuit):
     def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []
         p_conditional = []

@@ -1,6 +1,6 @@
 from differentiable_gate import *
 from typing import List
-from differentiable_circuit import Channel
+from differentiable_circuit import CircuitChannel
 from dataclasses import dataclass
 from datatypes import *
 import torch
@@ -75,7 +75,7 @@ class TFIM(Hamiltonian):
         return super().TrotterSuzuki(self.transverse, self.Ising, tau, steps)
 
 
-class Block(Channel):
+class Block(CircuitChannel):
     def __init__(
         self,
         H,
