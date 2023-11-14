@@ -8,6 +8,7 @@ import config
 import torch
 from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm
 import numpy as np
+import copy
 from datatypes import *
 
 
@@ -41,23 +42,33 @@ class A(HamiltonianTerm):
     H = XZ = convert(np.kron(X, Z))
 
 
-def bricklayer(a, b):
+def bricklayer(n):
     """Assumes bricks of size 2.
-    Input b is where the last brick ends
+    Input n follosw the right edge of the last brick
     (not where the last brick starts).
     """
 
-    l1 = list(range(a, b - 1, 2))
-    l2 = list(range(a + 1, b - 1, 2))
+    l1 = list(range(0, n - 1, 2))
+    l2 = list(range(1, n - 1, 2))
     return l1 + l2
 
 
+def shift_right(H, d):
+    H2 = copy.deepcopy(H)
+    for h in H2.terms:
+        if h.k == 1:
+            h.p += d
+        if h.k == 2:
+            h.p += d
+            h.q += d
+    return H2
+
+
 class TFIM(Hamiltonian):
-    def __init__(self, endpoints, coupling: float = 1.0):
-        a, b = endpoints
+    def __init__(self, n, coupling: float = 1.0):
         self.coupling = coupling
-        self.Ising = [ZZ(i, i + 1) for i in bricklayer(a, b)]
-        self.transverse = [X(i, strength=self.coupling) for i in range(a, b)]
+        self.Ising = [ZZ(i, i + 1) for i in bricklayer(n)]
+        self.transverse = [X(i, strength=self.coupling) for i in range(n)]
         self.terms = self.Ising + self.transverse
 
     def TrotterSuzuki(self, tau: Scalar, steps: int):
@@ -74,8 +85,11 @@ class Block(Channel):
         with_reset=True,
     ):
         self.gates = []
+        self.H = H
+        H_shifted = shift_right(H, 1)
+
         for tau, zeta in zip(taus, zetas):
-            self.gates += H.TrotterSuzuki(tau, trottersteps)
+            self.gates += H_shifted.TrotterSuzuki(tau, trottersteps)
             self.gates.append(Exp_i(A(0, 1), zeta))
 
         if with_reset:

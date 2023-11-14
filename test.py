@@ -17,7 +17,7 @@ class TestGrad:
         taus = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
         self.params = ParameterList(zetas + taus)
 
-        self.H = TFIM((1, self.n + 1))
+        self.H = TFIM(self.n)
         self.circuit = Block(self.H, taus, zetas, with_reset=False)
         self.prepstates()
 
@@ -29,8 +29,7 @@ class TestGrad:
         self.Obs = lambda y: self.target * cdot(self.target, y)
 
     def groundstate(self):
-        H = self.H.create_dense(self.n + 1)
-        H = H[: 2**self.n][:, : 2**self.n]
+        H = self.H.create_dense(self.n)
         energies, states = torch.linalg.eigh(H)
         return torch.cat([states[:, 0], torch.zeros_like(states[:, 0])])
 
@@ -85,7 +84,7 @@ class TestGradChannel(TestGrad):
         taus3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
         self.params = ParameterList(taus1 + zetas1 + taus2 + zetas2 + taus3 + zetas3)
 
-        self.H = TFIM((1, self.n + 1))
+        self.H = TFIM(self.n)
         B1 = Block(self.H, taus1, zetas1)
         B2 = Block(self.H, taus2, zetas2)
         B3 = Block(self.H, taus3, zetas3)
