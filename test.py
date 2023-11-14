@@ -18,7 +18,7 @@ class TestGrad:
         self.params = ParameterList(zetas + taus)
 
         self.H = TFIM(self.n)
-        self.circuit = Block(self.H, taus, zetas, with_reset=False)
+        self.circuit = Block(self.H, taus, zetas, unitary=True)
         self.prepstates()
 
     def prepstates(self):
@@ -92,6 +92,18 @@ class TestGradChannel(TestGrad):
 
         self.prepstates()
 
+    def prepstates(self):
+        self.psi0 = zero_state(self.n)
+        self.target = examples.Haar_state(self.n)
+        # self.target = self.groundstate()
+        # self.target = zero_state(self.n + 1)
+        self.Obs = lambda y: self.target * cdot(self.target, y)
+
+    def groundstate(self):
+        H = self.H.create_dense(self.n)
+        energies, states = torch.linalg.eigh(H)
+        return states[:, 0]
+
 
 def sample(get_grad, nparams, checkpoint_times):
     samples = checkpoint_times[-1]
@@ -140,9 +152,7 @@ if __name__ == "__main__":
 
     EMPH("Compute gradient of unitary circuit. Overlap with reference gradient")
 
-    compare(
-        ref_unitary, testgrad.optimal_control_grad(), "method: optimal control grad"
-    )
+    compare(ref_unitary, testgrad.optimal_control_grad(), "method: optimal control grad")
     compare(ref_unitary, testgrad.autograd(), "method: autograd")
     compare(ref_unitary, testgrad.paramshift_grad(), "method: param shift")
 

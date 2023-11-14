@@ -1,4 +1,4 @@
-from differentiable_gate import Gate, State
+from differentiable_gate import Gate, State, Measurement, ThetaGate
 from typing import Callable, List, Iterable
 from dataclasses import dataclass
 import torch
@@ -16,7 +16,7 @@ class CircuitChannel:
         checkpoints = []
         randomness = deque(randomness)
         for gate in self.gates:
-            if gate.unitary:
+            if not isinstance(gate, Measurement):
                 psi = gate.apply(psi)
             else:
                 if register:
@@ -49,7 +49,7 @@ class CircuitChannel:
         inputs_rev = []
 
         for gate in self.gates[::-1]:
-            if gate.unitary:
+            if isinstance(gate, ThetaGate):
                 psi = gate.reverse(psi)
 
                 dU = gate.dgate_state()
@@ -59,11 +59,15 @@ class CircuitChannel:
                 dE_inputs_rev.append(dE_input)
                 inputs_rev.append(gate.input)
 
-            else:
+            elif isinstance(gate, Measurement):
                 m = outcomes.pop()
                 psi = checkpoints.pop()
                 p = p_conditional.pop()
                 X = gate.reverse(X, m) / torch.sqrt(p)
+
+            else:
+                psi = gate.reverse(psi)
+                X = gate.reverse(X)
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X

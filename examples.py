@@ -77,18 +77,24 @@ class Block(CircuitChannel):
         taus: List[Scalar],
         zetas: List[Scalar],
         trottersteps: int = 1,
-        with_reset=True,
+        unitary=False,
     ):
-        self.gates = []
+        self.unitary = unitary
         self.H = H
+
+        if unitary:
+            self.gates = []
+        else:
+            self.gates = [AddAncilla(0)]
+
         H_shifted = shift_right(H, 1)
 
         for tau, zeta in zip(taus, zetas):
             self.gates += H_shifted.TrotterSuzuki(tau, trottersteps)
             self.gates.append(Exp_i(A(0, 1), zeta))
 
-        if with_reset:
-            self.gates.append(CleanSlateAncilla(0))
+        if not unitary:
+            self.gates.append(Measurement(0))
 
 
 def zero_state(L):

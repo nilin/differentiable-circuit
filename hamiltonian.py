@@ -1,4 +1,4 @@
-from differentiable_gate import Scalar, Gate
+from differentiable_gate import Scalar, Gate, ThetaGate
 from differentiable_circuit import State
 from typing import List
 from dataclasses import dataclass
@@ -58,9 +58,7 @@ class Hamiltonian:
         return Gate.create_dense(self, n)
 
 
-class Exp_i(Gate):
-    unitary = True
-
+class Exp_i(ThetaGate):
     def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar, speed: float = 1.0):
         self.hamiltonian = hamiltonian
         self.input = T
