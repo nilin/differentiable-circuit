@@ -55,10 +55,7 @@ class Hamiltonian:
     """
 
     def create_dense(self, n):
-        out = 0
-        for H in self.terms:
-            out += H.create_dense(n)
-        return out
+        return Gate.create_dense(self, n)
 
 
 class Exp_i(Gate):

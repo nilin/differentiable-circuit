@@ -67,16 +67,15 @@ class TFIM(Hamiltonian):
 class Block(Channel):
     def __init__(
         self,
-        n1,
+        H,
         taus: List[Scalar],
         zetas: List[Scalar],
         trottersteps: int = 1,
         with_reset=True,
     ):
-        tfim = TFIM((1, n1))
         self.gates = []
         for tau, zeta in zip(taus, zetas):
-            self.gates += tfim.TrotterSuzuki(tau, trottersteps)
+            self.gates += H.TrotterSuzuki(tau, trottersteps)
             self.gates.append(Exp_i(A(0, 1), zeta))
 
         if with_reset:
