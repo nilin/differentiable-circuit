@@ -43,11 +43,6 @@ class A(HamiltonianTerm):
 
 
 def bricklayer(n):
-    """Assumes bricks of size 2.
-    Input n follosw the right edge of the last brick
-    (not where the last brick starts).
-    """
-
     l1 = list(range(0, n - 1, 2))
     l2 = list(range(1, n - 1, 2))
     return l1 + l2

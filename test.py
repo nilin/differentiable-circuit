@@ -93,14 +93,6 @@ class TestGradChannel(TestGrad):
         self.prepstates()
 
 
-#    def optimal_control_grad(self, randomness):
-#        def Obs(y):
-#            return self.target * cdot(self.target, y)
-#
-#        value, _ = self.circuit.optimal_control(self.psi0, Obs, randomness=randomness)
-#        return self.reformat(value, torch.autograd.grad(value, self.params))
-
-
 def sample(get_grad, nparams, checkpoint_times):
     samples = checkpoint_times[-1]
     randomness = np.random.uniform(0, 1, (samples, nparams))

@@ -52,9 +52,11 @@ class Gate:
 
     def control(self, theta: Scalar) -> GateState:
         """
+        GateStates are small tensors that represent the local operation of a gate.
+        We use autograd for the mapping from inputs (real parameter) to the GateState.
+
         The declaration of control depends on the specific gate type
-        (X rotation, etc.). The implementation of control needs to use Tensor
-        operations throughout to make use of autograd.
+        (X rotation, etc.).
         """
         raise NotImplementedError
 

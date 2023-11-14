@@ -2,9 +2,15 @@ from config import *
 import torch
 from typing import Tuple, Callable, Any
 
+"""Large tensor"""
 State = torch.Tensor
+
+"""Small tensor"""
 GateState = torch.Tensor
+
+"""Inputs to the gate. Uses autograd"""
 Scalar = torch.Tensor
+
 ControlParams = Tuple[torch.Tensor]
 uniform01 = float
 ignore = Any
