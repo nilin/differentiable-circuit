@@ -6,7 +6,7 @@ from datatypes import *
 import torch
 import config
 import torch
-from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm
+from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm, TrotterSuzuki
 import numpy as np
 import copy
 from datatypes import *
@@ -27,6 +27,13 @@ class X(HamiltonianTerm):
 
 
 @dataclass
+class Z(HamiltonianTerm):
+    k = 1
+    diag = True
+    H = Z = convert([1, -1])
+
+
+@dataclass
 class ZZ(HamiltonianTerm):
     k = 2
     diag = True
@@ -40,6 +47,16 @@ class A(HamiltonianTerm):
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])
     H = XZ = convert(np.kron(X, Z))
+
+
+@dataclass
+class A2(HamiltonianTerm):
+    k = 2
+    diag = False
+    X = np.array([[0, 1], [1, 0]])
+    Z = np.array([[1, 0], [0, -1]])
+    # H = XZ = convert(np.kron(X, Z))
+    H = XX = convert(np.kron(X, X))
 
 
 def bricklayer(n):
@@ -66,48 +83,104 @@ class TFIM(Hamiltonian):
         self.transverse = [X(i, strength=self.coupling) for i in range(n)]
         self.terms = self.Ising + self.transverse
 
-    def TrotterSuzuki(self, tau: Scalar, steps: int):
-        return super().TrotterSuzuki(self.transverse, self.Ising, tau, steps)
-
 
 class Block(CircuitChannel):
     def __init__(
         self,
         H,
+        as_: List[Scalar],
         taus: List[Scalar],
         zetas: List[Scalar],
+        mixwith: List[int] = [1] * 100,
         trottersteps: int = 1,
-        unitary=False,
     ):
-        self.unitary = unitary
         self.H = H
-
-        if unitary:
-            self.gates = []
-        else:
-            self.gates = [AddAncilla(0)]
-
+        self.gates = [AddAncilla(0)]
         H_shifted = shift_right(H, 1)
 
-        for tau, zeta in zip(taus, zetas):
-            self.gates += H_shifted.TrotterSuzuki(tau, trottersteps)
-            self.gates.append(Exp_i(A(0, 1), zeta))
+        for a, tau, zeta, mw in zip(as_, taus, zetas, mixwith):
+            self.gates.append(Exp_i(A2(0, mw), a))
+            self.gates.append(
+                TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps)
+            )
+            self.gates.append(Exp_i(A(0, mw), zeta))
 
-        if not unitary:
-            self.gates.append(Measurement(0))
-
-
-def zero_state(L):
-    x = torch.zeros(2**L).to(tcomplex)
-    x[0] = 1
-    x = x.to(config.device)
-    return x
+        self.gates.append(Measurement(0))
 
 
-def Haar_state(L, seed=0):
-    N = 2**L
-    x = torch.normal(0, 1, (2, N), generator=torch.Generator().manual_seed(seed))
-    x = torch.complex(x[0], x[1]).to(tcomplex)
-    x = x.to(config.device)
-    x = x / torch.norm(x)
-    return x
+class ShortBlock(CircuitChannel):
+    """In a short block we can apply the Hamiltonian to an n-qubit state
+    instead of n+1 qubits.
+    """
+
+    def __init__(
+        self,
+        H,
+        a: Scalar,
+        tau: Scalar,
+        zeta: Scalar,
+        mixwith: int = 1,
+        trottersteps: int = 1,
+    ):
+        self.gates = [
+            TrotterSuzuki(H.Ising, H.transverse, tau, trottersteps),
+            AddAncilla(0),
+            Exp_i(Z(0), a),
+            Exp_i(A(0, mixwith), zeta),
+            Measurement(0),
+        ]
+
+
+@dataclass
+class StateGenerator:
+    n: int
+
+    def pure_state(self):
+        raise NotImplementedError
+
+    def density_matrix(self):
+        raise NotImplementedError
+
+
+@dataclass
+class RandomState(StateGenerator):
+    gen: torch.Generator
+
+
+@dataclass
+class HaarState(RandomState):
+    def pure_state(self):
+        slate = torch.zeros((2, 2**self.n), device=config.device)
+        slate = slate.normal_(0, 1, generator=self.gen)
+        x = torch.complex(slate[0], slate[1])
+        x = x / torch.norm(x)
+        return x
+
+    def density_matrix(self):
+        return torch.eye(2**self.n, device=config.device) / 2**self.n
+
+
+@dataclass
+class DensityMatrixState(RandomState):
+    rho: DensityMatrix
+
+    def pure_state(self):
+        raise NotImplementedError
+
+    def density_matrix(self):
+        return self.rho
+
+
+@dataclass
+class PureState(StateGenerator):
+    def density_matrix(self):
+        psi = self.pure_state()
+        return psi[:, None] * psi[None, :].conj()
+
+
+@dataclass
+class ZeroState(PureState):
+    def pure_state(self):
+        x = torch.zeros(2**self.n, device=config.device).to(tcomplex)
+        x[0] = 1
+        return x

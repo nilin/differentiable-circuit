@@ -1,5 +1,5 @@
 from differentiable_gate import Scalar, Gate, ThetaGate
-from differentiable_circuit import State
+from differentiable_circuit import State, CircuitChannel
 from typing import List
 from dataclasses import dataclass
 import torch
@@ -21,8 +21,12 @@ class HamiltonianTerm(Gate):
 
     strength: float = 1.0
 
-    def control(self, t: ignore):
-        return self.strength * self.H
+    #    def control(self, t: ignore):
+    #        return self.strength * self.H
+
+    def apply(self, psi: State):
+        gate_state = self.strength * self.H
+        return self.apply_gate_state(gate_state, psi)
 
 
 @dataclass
@@ -38,18 +42,6 @@ class Hamiltonian:
     def expectation(self, psi: State):
         return psi.conj().dot(self.apply(psi))
 
-    @staticmethod
-    def TrotterSuzuki(
-        Layer1: List[HamiltonianTerm],
-        Layer2: List[HamiltonianTerm],
-        T: Scalar,
-        steps: int,
-    ):
-        U_0 = [Exp_i(H, T, 1 / (2 * steps)) for H in Layer2]
-        U_1 = [Exp_i(H, T) for H in Layer1]
-        U_2 = [Exp_i(H, T) for H in Layer2]
-        return U_0 + (U_1 + U_2) * (steps - 1) + U_1 + U_0
-
     """
     Test utilities.
     """
@@ -58,7 +50,24 @@ class Hamiltonian:
         return Gate.create_dense(self, n)
 
 
+@dataclass
+class TrotterSuzuki(CircuitChannel):
+    Layer1: List[HamiltonianTerm]
+    Layer2: List[HamiltonianTerm]
+    T: Scalar
+    steps: int
+
+    def __post_init__(self):
+        U_0 = [Exp_i(H, self.T, 1 / (2 * self.steps)) for H in self.Layer2]
+        U_1 = [Exp_i(H, self.T) for H in self.Layer1]
+        U_2 = [Exp_i(H, self.T) for H in self.Layer2]
+        self.gates = U_0 + (U_1 + U_2) * (self.steps - 1) + U_1 + U_0
+
+
+@dataclass
 class Exp_i(ThetaGate):
+    hamiltonian: HamiltonianTerm = None
+
     def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar, speed: float = 1.0):
         self.hamiltonian = hamiltonian
         self.input = T

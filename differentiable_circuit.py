@@ -1,21 +1,21 @@
 from differentiable_gate import Gate, State, Measurement, ThetaGate
-from typing import Callable, List, Iterable
+from typing import Callable, List, Iterable, Optional
 from dataclasses import dataclass
 import torch
 from collections import deque
 from datatypes import *
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CircuitChannel:
-    gates: List[Gate]
+    gates: Optional[List[Gate]] = None
 
     def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []
         p_conditional = []
         checkpoints = []
         randomness = deque(randomness)
-        for gate in self.gates:
+        for gate, where in self.flatgates_and_where():
             if not isinstance(gate, Measurement):
                 psi = gate.apply(psi)
             else:
@@ -48,7 +48,7 @@ class CircuitChannel:
         dE_inputs_rev = []
         inputs_rev = []
 
-        for gate in self.gates[::-1]:
+        for gate, where in self.flatgates_and_where()[::-1]:
             if isinstance(gate, ThetaGate):
                 psi = gate.reverse(psi)
 
@@ -72,11 +72,23 @@ class CircuitChannel:
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
 
+    def flatgates_and_where(self):
+        gates_and_where = []
+        for component in self.gates:
+            if isinstance(component, CircuitChannel):
+                gates_and_where += [
+                    (gate, (component,) + w)
+                    for gate, w in component.flatgates_and_where()
+                ]
+            else:
+                gates_and_where.append((component, (component,)))
+        return gates_and_where
+
     """
     Test utilities.
     """
 
     def apply_to_density_matrix(self, rho):
-        for gate in self.gates:
+        for i, (gate, where) in enumerate(self.flatgates_and_where()):
             rho = gate.apply_to_density_matrix(rho)
         return rho

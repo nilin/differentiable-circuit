@@ -4,26 +4,47 @@ import torch
 import argparse
 from differentiable_circuit import cdot, squared_overlap, CircuitChannel
 from differentiable_gate import *
-from examples import Block, zero_state, TFIM
+from examples import Block, TFIM, HaarState, ZeroState
 import examples
 from torch.nn import Parameter, ParameterList
 from datatypes import *
 
 
-class TestGrad:
+class TestGradChannel:
     def __init__(self, n=6):
         self.n = n
-        zetas = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        self.params = ParameterList(zetas + taus)
+
+        # zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        # taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        # self.params = ParameterList(zetas1 + taus1)
+        # self.circuit = Block(self.n, taus1, zetas1)
+
+        as1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        as2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        as3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        zetas2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        zetas3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        taus2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        taus3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        self.params = ParameterList(
+            as1 + as2 + as3 + taus1 + zetas1 + taus2 + zetas2 + taus3 + zetas3
+        )
 
         self.H = TFIM(self.n)
-        self.circuit = Block(self.H, taus, zetas, unitary=True)
+        B1 = Block(self.H, as1, taus1, zetas1)
+        B2 = Block(self.H, as2, taus2, zetas2)
+        B3 = Block(self.H, as3, taus3, zetas3)
+        self.circuit = CircuitChannel(gates=[B1, B2, B3])
+
         self.prepstates()
 
     def prepstates(self):
-        self.psi0 = zero_state(self.n + 1)
-        self.target = examples.Haar_state(self.n + 1)
+        self.psi0 = examples.ZeroState(self.n).pure_state()
+        self.target = examples.HaarState(
+            self.n, torch.Generator(device=config.device)
+        ).pure_state()
         # self.target = self.groundstate()
         # self.target = zero_state(self.n + 1)
         self.Obs = lambda y: self.target * cdot(self.target, y)
@@ -31,7 +52,7 @@ class TestGrad:
     def groundstate(self):
         H = self.H.create_dense(self.n)
         energies, states = torch.linalg.eigh(H)
-        return torch.cat([states[:, 0], torch.zeros_like(states[:, 0])])
+        return states[:, 0]
 
     def optimal_control_grad(self, **kwargs):
         value, _ = self.circuit.optimal_control(self.psi0, self.Obs, **kwargs)
@@ -43,6 +64,7 @@ class TestGrad:
 
     def density_matrix_grad(self):
         rho = self.psi0[:, None] * self.psi0[None, :].conj()
+        # rho = self.psi0.density_matrix()
         rho_out = self.circuit.apply_to_density_matrix(rho)
 
         value = cdot(self.target, rho_out @ self.target).real
@@ -67,34 +89,27 @@ class TestGrad:
         return value.cpu().detach(), np.stack([g.detach().numpy() for g in grad])
 
 
-class TestGradChannel(TestGrad):
+class TestGradUnitary(TestGradChannel):
     def __init__(self, n=6):
         self.n = n
-
-        # zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        # taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        # self.params = ParameterList(zetas1 + taus1)
-        # self.circuit = Block(self.n, taus1, zetas1)
-
-        zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        self.params = ParameterList(taus1 + zetas1 + taus2 + zetas2 + taus3 + zetas3)
+        a_ = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        zetas = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        taus = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
+        self.params = ParameterList(zetas + taus)
 
         self.H = TFIM(self.n)
-        B1 = Block(self.H, taus1, zetas1)
-        B2 = Block(self.H, taus2, zetas2)
-        B3 = Block(self.H, taus3, zetas3)
-        self.circuit = CircuitChannel(B1.gates + B2.gates + B3.gates)
+        self.circuit = Block(self.H, a_, taus, zetas)
+
+        """Remove non-unitary operations"""
+        self.circuit.gates = self.circuit.gates[1:-1]
 
         self.prepstates()
 
     def prepstates(self):
-        self.psi0 = zero_state(self.n)
-        self.target = examples.Haar_state(self.n)
+        self.psi0 = examples.ZeroState(self.n + 1).pure_state()
+        self.target = examples.HaarState(
+            self.n + 1, torch.Generator(device=config.device)
+        ).pure_state()
         # self.target = self.groundstate()
         # self.target = zero_state(self.n + 1)
         self.Obs = lambda y: self.target * cdot(self.target, y)
@@ -102,7 +117,7 @@ class TestGradChannel(TestGrad):
     def groundstate(self):
         H = self.H.create_dense(self.n)
         energies, states = torch.linalg.eigh(H)
-        return states[:, 0]
+        return torch.cat([states[:, 0], torch.zeros_like(states[:, 0])])
 
 
 def sample(get_grad, nparams, checkpoint_times):
@@ -143,7 +158,7 @@ if __name__ == "__main__":
     torch.manual_seed(1)
 
     print("preparing problems")
-    testgrad = TestGrad(n)
+    testgrad = TestGradUnitary(n)
     testgradchannel = TestGradChannel(n)
     print("preparing reference values using density matrix autograd")
     ref_unitary = testgrad.density_matrix_grad()
