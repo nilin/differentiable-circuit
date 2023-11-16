@@ -52,12 +52,13 @@ def apply_gate(positions: List[int], k_qubit_matrix: torch.Tensor, psi: torch.Te
     return psi_out
 
 
-def apply_sparse_gate(positions: List[int], k_qubit_sparse_matrix: Tuple, psi: torch.Tensor):
+def apply_sparse_gate(
+    positions: List[int], k_qubit_sparse_matrix: Tuple, psi: torch.Tensor
+):
     N = len(psi)
     psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
     matrix_indices, values = k_qubit_sparse_matrix
     where_all_k_qubits_0, blocksizes = get_where_all_k_qubits_0(N, positions)
-    breakpoint()
 
     for (i, j), val in zip(matrix_indices, values):
         I = where_all_k_qubits_0 + dot_with_binary_expansion(blocksizes, i)
