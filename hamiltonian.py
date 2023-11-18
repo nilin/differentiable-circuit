@@ -23,9 +23,6 @@ class HamiltonianTerm(Gate):
 
     strength: float = 1.0
 
-    #    def control(self, t: ignore):
-    #        return self.strength * self.H
-
     def apply(self, psi: State):
         gate_state = self.strength * self.H
         return self.apply_gate_state(gate_state, psi)

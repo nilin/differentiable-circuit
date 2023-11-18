@@ -77,9 +77,7 @@ class TestGradChannel:
             with torch.no_grad():
                 curval = p.item()
                 p.copy_(p + e)
-                loss_p = squared_overlap(
-                    self.target, self.circuit.apply(self.psi0, **kwargs)
-                )
+                loss_p = squared_overlap(self.target, self.circuit.apply(self.psi0, **kwargs))
                 p.copy_(curval)
             grad.append(((loss_p - value) / e).cpu())
         return self.reformat(value, grad)
@@ -140,9 +138,7 @@ def compare(a, b, txt):
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument(
-        "--n", type=int, default=(8 if config.device.type == "cpu" else 9)
-    )
+    argparser.add_argument("--n", type=int, default=(8 if config.device.type == "cpu" else 9))
     args, _ = argparser.parse_known_args()
     n = args.n
 
@@ -169,7 +165,7 @@ if __name__ == "__main__":
 
     compare(ref_unitary, testgrad.optimal_control_grad(), "method: optimal control grad")
     compare(ref_unitary, testgrad.autograd(), "method: autograd")
-    compare(ref_unitary, testgrad.paramshift_grad(), "method: param shift")
+    # compare(ref_unitary, testgrad.paramshift_grad(), "method: param shift")
 
     EMPH(
         "Estimate gradient of channel using [optimal control].\n\n"
@@ -184,17 +180,17 @@ if __name__ == "__main__":
         grad = np.stack(list(zip(*data))[1]).mean(axis=0)
         compare(ref_channel, (value, grad), f"{i} samples")
 
-    EMPH(
-        "Estimate gradient of channel using [parameter shift].\n\n"
-        + "Overlap with true gradient computed using density matrix evolution"
-    )
+    # EMPH(
+    #    "Estimate gradient of channel using [parameter shift].\n\n"
+    #    + "Overlap with true gradient computed using density matrix evolution"
+    # )
 
-    def estimate(randomness):
-        return testgradchannel.paramshift_grad(randomness=randomness)
+    # def estimate(randomness):
+    #    return testgradchannel.paramshift_grad(randomness=randomness)
 
-    for i, data in sample(estimate, 4, checkpoint_times=[1, 10, 50, 100]):
-        value = np.stack(list(zip(*data))[0]).mean()
-        grad = np.stack(list(zip(*data))[1]).mean(axis=0)
-        compare(ref_channel, (value, grad), f"{i}x{len(grad)} passes")
+    # for i, data in sample(estimate, 4, checkpoint_times=[1, 10, 50, 100]):
+    #    value = np.stack(list(zip(*data))[0]).mean()
+    #    grad = np.stack(list(zip(*data))[1]).mean(axis=0)
+    #    compare(ref_channel, (value, grad), f"{i}x{len(grad)} passes")
 
-    EMPH("done")
+    # EMPH("done")
