@@ -4,7 +4,9 @@ from differentiable_circuit import CircuitChannel
 from dataclasses import dataclass
 from datatypes import *
 import torch
+from torch.nn import Parameter
 import config
+from torch import nn
 import torch
 from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm, TrotterSuzuki
 import numpy as np
@@ -24,6 +26,7 @@ class X(HamiltonianTerm):
     k = 1
     diag = False
     H = X = convert([[0, 1], [1, 0]])
+    p: int
 
 
 @dataclass
@@ -31,6 +34,7 @@ class Z(HamiltonianTerm):
     k = 1
     diag = True
     H = Z = convert([1, -1])
+    p: int
 
 
 @dataclass
@@ -38,6 +42,8 @@ class ZZ(HamiltonianTerm):
     k = 2
     diag = True
     H = ZZ = convert([1, -1, -1, 1])
+    p: int
+    q: int
 
 
 @dataclass
@@ -47,6 +53,8 @@ class A(HamiltonianTerm):
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])
     H = XZ = convert(np.kron(X, Z))
+    p: int
+    q: int
 
 
 @dataclass
@@ -57,6 +65,8 @@ class A2(HamiltonianTerm):
     Z = np.array([[1, 0], [0, -1]])
     # H = XZ = convert(np.kron(X, Z))
     H = XX = convert(np.kron(X, X))
+    p: int
+    q: int
 
 
 def bricklayer(n):
@@ -88,25 +98,43 @@ class Block(CircuitChannel):
     def __init__(
         self,
         H: Hamiltonian,
-        as_: List[Scalar],
-        taus: List[Scalar],
-        zetas: List[Scalar],
-        mixwith: List[int] = [1] * 100,
+        l: int = None,
+        mixwith: List[int] = None,
+        # as_: List[Scalar],
+        # taus: List[Scalar],
+        # zetas: List[Scalar],
+        # mixwith: List[int] = [1] * 100,
         trottersteps: int = 1,
+        unitary: bool = False,
     ):
         torch.nn.Module.__init__(self)
         self.H = H
-        self.gates = [AddAncilla(0)]
+        gates = []
+
+        if not unitary:
+            gates.append(AddAncilla(0))
+
         H_shifted = shift_right(H, 1)
 
-        for a, tau, zeta, mw in zip(as_, taus, zetas, mixwith):
-            self.gates.append(Exp_i(A2(0, mw), a))
-            self.gates.append(
+        if mixwith is None:
+            mixwith = [1] * l
+
+        # for a, tau, zeta, mw in zip(as_, taus, zetas, mixwith):
+        for i, mw in enumerate(mixwith):
+            a = Parameter(torch.tensor(1.0))
+            tau = Parameter(torch.tensor(1.0))
+            zeta = Parameter(torch.tensor(1.0))
+
+            gates.append(Exp_i(A2(0, mw), a))
+            gates.append(
                 TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps)
             )
-            self.gates.append(Exp_i(A(0, mw), zeta))
+            gates.append(Exp_i(A(0, mw), zeta))
 
-        self.gates.append(Measurement(0))
+        if not unitary:
+            gates.append(Measurement(0))
+
+        self.gates = nn.ModuleList(gates)
 
 
 class ShortBlock(CircuitChannel):

@@ -2,13 +2,13 @@ from differentiable_gate import Gate, State, Measurement, ThetaGate
 from typing import Callable, List, Iterable, Optional
 from dataclasses import dataclass
 import torch
+from torch import nn
 from collections import deque
 from datatypes import *
 
 
-@dataclass(kw_only=True)
 class CircuitChannel(torch.nn.Module):
-    gates: Optional[List[Gate]] = None
+    gates: nn.ModuleList
 
     def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []

@@ -10,34 +10,22 @@ from torch.nn import Parameter, ParameterList
 from datatypes import *
 
 
+class Circuit(CircuitChannel):
+    def __init__(self, l, d, H):
+        nn.Module.__init__(self)
+        self.gates = nn.ModuleList([Block(H, l=l) for _ in range(d)])
+
+
+class UnitaryCircuit(CircuitChannel):
+    def __init__(self, l, d, H):
+        nn.Module.__init__(self)
+        self.gates = nn.ModuleList([Block(H, l=l, unitary=True) for _ in range(d)])
+
+
 class TestGradChannel:
     def __init__(self, n=6):
         self.n = n
-
-        # zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        # taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        # self.params = ParameterList(zetas1 + taus1)
-        # self.circuit = Block(self.n, taus1, zetas1)
-
-        as1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        as2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        as3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus1 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus2 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus3 = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        self.params = ParameterList(
-            as1 + as2 + as3 + taus1 + zetas1 + taus2 + zetas2 + taus3 + zetas3
-        )
-
-        self.H = TFIM(self.n)
-        B1 = Block(self.H, as1, taus1, zetas1)
-        B2 = Block(self.H, as2, taus2, zetas2)
-        B3 = Block(self.H, as3, taus3, zetas3)
-        self.circuit = CircuitChannel(gates=[B1, B2, B3])
-
+        self.circuit = Circuit(3, 3, TFIM(self.n))
         self.prepstates()
 
     def prepstates(self):
@@ -45,8 +33,6 @@ class TestGradChannel:
         self.target = examples.HaarState(
             self.n, torch.Generator(device=config.device)
         ).pure_state()
-        # self.target = self.groundstate()
-        # self.target = zero_state(self.n + 1)
         self.Obs = lambda y: self.target * cdot(self.target, y)
 
     def groundstate(self):
@@ -56,11 +42,11 @@ class TestGradChannel:
 
     def optimal_control_grad(self, **kwargs):
         value, _ = self.circuit.optimal_control(self.psi0, self.Obs, **kwargs)
-        return self.reformat(value, torch.autograd.grad(value, self.params))
+        return self.reformat(value, torch.autograd.grad(value, self.circuit.parameters()))
 
     def autograd(self):
         value = squared_overlap(self.target, self.circuit.apply(self.psi0))
-        return self.reformat(value, torch.autograd.grad(value, self.params))
+        return self.reformat(value, torch.autograd.grad(value, self.circuit.parameters()))
 
     def density_matrix_grad(self):
         rho = self.psi0[:, None] * self.psi0[None, :].conj()
@@ -68,19 +54,7 @@ class TestGradChannel:
         rho_out = self.circuit.apply_to_density_matrix(rho)
 
         value = cdot(self.target, rho_out @ self.target).real
-        return self.reformat(value, torch.autograd.grad(value, self.params))
-
-    def paramshift_grad(self, e=0.001, **kwargs):
-        value = squared_overlap(self.target, self.circuit.apply(self.psi0, **kwargs))
-        grad = []
-        for i, p in enumerate(self.params):
-            with torch.no_grad():
-                curval = p.item()
-                p.copy_(p + e)
-                loss_p = squared_overlap(self.target, self.circuit.apply(self.psi0, **kwargs))
-                p.copy_(curval)
-            grad.append(((loss_p - value) / e).cpu())
-        return self.reformat(value, grad)
+        return self.reformat(value, torch.autograd.grad(value, self.circuit.parameters()))
 
     @staticmethod
     def reformat(value, grad):
@@ -90,17 +64,7 @@ class TestGradChannel:
 class TestGradUnitary(TestGradChannel):
     def __init__(self, n=6):
         self.n = n
-        a_ = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        zetas = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        taus = [Parameter(torch.tensor(1.0)), Parameter(torch.tensor(1.0))]
-        self.params = ParameterList(zetas + taus)
-
-        self.H = TFIM(self.n)
-        self.circuit = Block(self.H, a_, taus, zetas)
-
-        """Remove non-unitary operations"""
-        self.circuit.gates = self.circuit.gates[1:-1]
-
+        self.circuit = UnitaryCircuit(3, 3, TFIM(self.n))
         self.prepstates()
 
     def prepstates(self):
@@ -108,8 +72,6 @@ class TestGradUnitary(TestGradChannel):
         self.target = examples.HaarState(
             self.n + 1, torch.Generator(device=config.device)
         ).pure_state()
-        # self.target = self.groundstate()
-        # self.target = zero_state(self.n + 1)
         self.Obs = lambda y: self.target * cdot(self.target, y)
 
     def groundstate(self):
@@ -165,7 +127,6 @@ if __name__ == "__main__":
 
     compare(ref_unitary, testgrad.optimal_control_grad(), "method: optimal control grad")
     compare(ref_unitary, testgrad.autograd(), "method: autograd")
-    # compare(ref_unitary, testgrad.paramshift_grad(), "method: param shift")
 
     EMPH(
         "Estimate gradient of channel using [optimal control].\n\n"
@@ -179,18 +140,3 @@ if __name__ == "__main__":
         value = np.stack(list(zip(*data))[0]).mean()
         grad = np.stack(list(zip(*data))[1]).mean(axis=0)
         compare(ref_channel, (value, grad), f"{i} samples")
-
-    # EMPH(
-    #    "Estimate gradient of channel using [parameter shift].\n\n"
-    #    + "Overlap with true gradient computed using density matrix evolution"
-    # )
-
-    # def estimate(randomness):
-    #    return testgradchannel.paramshift_grad(randomness=randomness)
-
-    # for i, data in sample(estimate, 4, checkpoint_times=[1, 10, 50, 100]):
-    #    value = np.stack(list(zip(*data))[0]).mean()
-    #    grad = np.stack(list(zip(*data))[1]).mean(axis=0)
-    #    compare(ref_channel, (value, grad), f"{i}x{len(grad)} passes")
-
-    # EMPH("done")

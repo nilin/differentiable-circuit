@@ -6,10 +6,10 @@ import os
 from datatypes import *
 from torch.nn import Parameter, ParameterList
 import torch
+from torch import nn
 import examples
 import pickle
 import json
-from torch import nn
 
 
 class Problem:
@@ -37,8 +37,34 @@ class Problem:
 
 class Circuit(CircuitChannel):
     def __init__(self, l, d, problem):
-        nn.Module.__init__(self)
         self.gates = nn.ModuleList([Block(problem.H, l=l) for _ in range(d)])
+
+
+# def getcircuit(l, d, problem):
+#    # _a_ = [[Parameter(torch.tensor(1.0)) for _ in range(l)] for _ in range(d)]
+#    # _tau_ = [[Parameter(torch.tensor(1.0)) for _ in range(l)] for _ in range(d)]
+#    # _zeta_ = [[Parameter(torch.tensor(1.0)) for _ in range(l)] for _ in range(d)]
+#    # params = ParameterList(
+#    #    [a for as_ in _a_ for a in as_]
+#    #    + [tau for taus_ in _tau_ for tau in taus_]
+#    #    + [zeta for zetas_ in _zeta_ for zeta in zetas_]
+#    # )
+#
+#    circuit = CircuitChannel(
+#        gates=[Block(problem.H, l=l) for _ in range(d)]
+#        # gates=[
+#        #    Block(problem.H, a_, tau_, zeta_, mixwith=list(range(1, n)) * 10)
+#        #    for a_, tau_, zeta_ in zip(_a_, _tau_, _zeta_)
+#        # ]
+#    )
+#    # return circuit, params
+#    return circuit
+
+# a = Parameter(torch.tensor(1.0))
+# tau = Parameter(torch.tensor(1.0))
+# zeta = Parameter(torch.tensor(1.0))
+# params = ParameterList([a, tau, zeta])
+# return ShortBlock(problem.H, a, tau, zeta), params
 
 
 def makedir(path):
@@ -72,9 +98,9 @@ if __name__ == "__main__":
     emph(f"{n}+1 qubits")
 
     problem = Problem(n)
-    block = Circuit(l, d, problem)
+    block, params = getcircuit(l, d, problem)
 
-    optimizer = optim.Adam(block.parameters(), lr=0.01)
+    optimizer = optim.Adam(params, lr=0.01)
     values = []
 
     rho = ZeroState(n).density_matrix()
@@ -88,7 +114,7 @@ if __name__ == "__main__":
         torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho, f"{outdir}/rho_{epoch}.pt")
         torch.save(block, f"{outdir}/block_{epoch}.pt")
-        torch.save(block.state_dict(), f"{outdir}/params_{epoch}.pt")
+        torch.save(params, f"{outdir}/params_{epoch}.pt")
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()

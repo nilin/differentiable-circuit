@@ -5,11 +5,11 @@ import torch
 from torch.autograd.functional import jacobian as torch_jacobian
 from datatypes import *
 from collections import namedtuple
+from torch import nn
 
 from datatypes import GateImplementation, GateState, State
 
 
-@dataclass
 class Gate:
     implementation = config.get_default_gate_implementation()
     """
@@ -17,9 +17,12 @@ class Gate:
     diag: bool
     k: int
     """
+    p: Optional[int]
+    q: Optional[int]
 
-    p: Optional[int] = None
-    q: Optional[int] = None
+    def __init__(self, p=None, q=None):
+        self.p = p
+        self.q = q
 
     def apply_gate_state(self, gate_state: GateState, psi: State):
         return self.implementation.apply_gate(self, gate_state, psi)
@@ -65,9 +68,10 @@ class Gate:
         return M_rho_Mt
 
 
-@dataclass(kw_only=True)
 class ThetaGate(Gate):
-    input: Scalar
+    def __init__(self, p=None, q=None, input: Scalar = None):
+        super().__init__(p=p, q=q)
+        self.input = input
 
     def apply(self, psi: State, **kwargs):
         gate_state = self.control(self.input)
@@ -89,11 +93,14 @@ class ThetaGate(Gate):
         return torch.complex(real, imag)
 
 
-@dataclass
-class Measurement(Gate):
+class Measurement(nn.Module, Gate):
     implementation = config.get_default_gate_implementation()
     outcome_tuple = namedtuple("Measurement", ["psi", "outcome", "p_outcome"])
-    p: int = 0
+    p: int
+
+    def __init__(self, p=0):
+        torch.nn.Module.__init__(self)
+        self.p = p
 
     def apply(self, psi: State, u: uniform01, normalize=True):
         return self.measure(psi, u, normalize=normalize)
@@ -132,9 +139,12 @@ class Measurement(Gate):
         return out
 
 
-@dataclass
-class AddAncilla(Gate):
-    p: int = 0
+class AddAncilla(Gate, torch.nn.Module):
+    p: int
+
+    def __init__(self, p=0):
+        torch.nn.Module.__init__(self)
+        self.p = p
 
     def apply(self, psi: State):
         N = 2 * len(psi)

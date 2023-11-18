@@ -71,7 +71,6 @@ class TrotterSuzuki(CircuitChannel):
         self.gates = U_0 + (U_1 + U_2) * (self.steps - 1) + U_1 + U_0
 
 
-@dataclass
 class Exp_i(ThetaGate, nn.Module):
     hamiltonian: HamiltonianTerm = None
 
