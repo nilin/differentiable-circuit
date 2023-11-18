@@ -40,12 +40,16 @@ class CircuitChannel(torch.nn.Module):
         randomness: Iterable[uniform01] = [],
     ):
         psi_t, o, p, ch = self.apply(psi, randomness, register=True)
-        Xt = Obs(psi_t)
-        E = Xt.conj().dot(psi_t).real
+        E = cdot(psi_t, Obs(psi_t)).real
 
-        return E, self.backprop(psi_t, Xt, o, p, ch)
+        (Xt,) = torch.autograd.grad(E, psi_t, retain_graph=True)
+        Xt = Xt.conj()
 
-    def backprop(self, psi, X, outcomes, p_conditional, checkpoints):
+        dObs_dp = [0 for _ in p]
+
+        return E, p, self.backprop(psi_t, Xt, dObs_dp, o, p, ch)
+
+    def backprop(self, psi, X, dObs_dp, outcomes, p_conditional, checkpoints):
         dE_inputs_rev = []
         inputs_rev = []
 
@@ -54,17 +58,20 @@ class CircuitChannel(torch.nn.Module):
                 psi = gate.apply_reverse(psi)
 
                 dU = gate.dgate_state()
-                dE_input = 2 * cdot(X, gate.apply_gate_state(dU, psi)).real
+                dE_input = cdot(X, gate.apply_gate_state(dU, psi)).real
                 X = gate.apply_reverse(X)
 
                 dE_inputs_rev.append(dE_input)
                 inputs_rev.append(gate.input)
 
             elif isinstance(gate, Measurement):
-                m = outcomes.pop()
                 psi = checkpoints.pop()
+                m = outcomes.pop()
                 p = p_conditional.pop()
                 X = gate.apply_reverse(X, m) / torch.sqrt(p)
+
+                dvdp = dObs_dp.pop()
+                X += dvdp * 2 * psi.conj()
 
             else:
                 psi = gate.apply_reverse(psi)

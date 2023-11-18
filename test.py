@@ -41,7 +41,7 @@ class TestGradChannel:
         return states[:, 0]
 
     def optimal_control_grad(self, **kwargs):
-        value, _ = self.circuit.optimal_control(self.psi0, self.Obs, **kwargs)
+        value, *_ = self.circuit.optimal_control(self.psi0, self.Obs, **kwargs)
         return self.reformat(value, torch.autograd.grad(value, self.circuit.parameters()))
 
     def autograd(self):

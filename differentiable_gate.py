@@ -70,7 +70,7 @@ class Gate:
     def apply_reverse(self, psi: State):
         raise NotImplementedError
 
-    def reverse(self, **kwargs):
+    def reverse(self):
         raise NotImplementedError
 
 
@@ -157,6 +157,9 @@ class Measurement(nn.Module, Gate):
         out = rho[_0][:, _0] + rho[_1][:, _1]
         return out
 
+    def reverse(self):
+        return AddAncilla(self.p)
+
 
 class AddAncilla(Gate, torch.nn.Module):
     p: int
@@ -175,3 +178,6 @@ class AddAncilla(Gate, torch.nn.Module):
     def apply_reverse(self, psi: State):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
         return psi[_0]
+
+    def reverse(self):
+        return Measurement(self.p)
