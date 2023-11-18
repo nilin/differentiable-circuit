@@ -7,7 +7,7 @@ from datatypes import *
 
 
 @dataclass(kw_only=True)
-class CircuitChannel:
+class CircuitChannel(torch.nn.Module):
     gates: Optional[List[Gate]] = None
 
     def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
@@ -77,8 +77,7 @@ class CircuitChannel:
         for component in self.gates:
             if isinstance(component, CircuitChannel):
                 gates_and_where += [
-                    (gate, (component,) + w)
-                    for gate, w in component.flatgates_and_where()
+                    (gate, (component,) + w) for gate, w in component.flatgates_and_where()
                 ]
             else:
                 gates_and_where.append((component, (component,)))

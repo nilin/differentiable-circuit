@@ -87,13 +87,14 @@ class TFIM(Hamiltonian):
 class Block(CircuitChannel):
     def __init__(
         self,
-        H,
+        H: Hamiltonian,
         as_: List[Scalar],
         taus: List[Scalar],
         zetas: List[Scalar],
         mixwith: List[int] = [1] * 100,
         trottersteps: int = 1,
     ):
+        torch.nn.Module.__init__(self)
         self.H = H
         self.gates = [AddAncilla(0)]
         H_shifted = shift_right(H, 1)

@@ -1,6 +1,8 @@
 from differentiable_gate import Scalar, Gate, ThetaGate
 from differentiable_circuit import State, CircuitChannel
 from typing import List
+from torch import nn
+import config
 from dataclasses import dataclass
 import torch
 import torch
@@ -50,14 +52,22 @@ class Hamiltonian:
         return Gate.create_dense(self, n)
 
 
-@dataclass
 class TrotterSuzuki(CircuitChannel):
     Layer1: List[HamiltonianTerm]
     Layer2: List[HamiltonianTerm]
     T: Scalar
     steps: int
 
-    def __post_init__(self):
+    def __init__(self, Layer1, Layer2, T=None, steps=1):
+        torch.nn.Module.__init__(self)
+        self.Layer1 = Layer1
+        self.Layer2 = Layer2
+        self.steps = steps
+        if T is None:
+            self.T = nn.Parameter(torch.randn(1, config.gen))
+        else:
+            self.T = T
+
         U_0 = [Exp_i(H, self.T, 1 / (2 * self.steps)) for H in self.Layer2]
         U_1 = [Exp_i(H, self.T) for H in self.Layer1]
         U_2 = [Exp_i(H, self.T) for H in self.Layer2]
@@ -65,13 +75,18 @@ class TrotterSuzuki(CircuitChannel):
 
 
 @dataclass
-class Exp_i(ThetaGate):
+class Exp_i(ThetaGate, nn.Module):
     hamiltonian: HamiltonianTerm = None
 
-    def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar, speed: float = 1.0):
+    def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar = None, speed: float = 1.0):
         self.hamiltonian = hamiltonian
-        self.input = T
         self.speed = speed
+
+        nn.Module.__init__(self)
+        if T is None:
+            self.input = nn.Parameter(torch.randn(1, config.gen))
+        else:
+            self.input = T
 
         self.geometry_like(self.hamiltonian)
         self.compile()
