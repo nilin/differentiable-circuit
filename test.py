@@ -4,7 +4,7 @@ import torch
 import argparse
 from differentiable_circuit import cdot, squared_overlap, CircuitChannel
 from differentiable_gate import *
-from examples import Block, TFIM, HaarState, ZeroState
+from examples import Block, TFIM, HaarState, ZeroState, UnitaryBlock
 import examples
 from torch.nn import Parameter, ParameterList
 from datatypes import *
@@ -19,7 +19,7 @@ class Circuit(CircuitChannel):
 class UnitaryCircuit(CircuitChannel):
     def __init__(self, l, d, H):
         nn.Module.__init__(self)
-        self.gates = nn.ModuleList([Block(H, l=l, unitary=True) for _ in range(d)])
+        self.gates = nn.ModuleList([UnitaryBlock(H, l=l) for _ in range(d)])
 
 
 class TestGradChannel:

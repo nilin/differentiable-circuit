@@ -1,7 +1,8 @@
 from differentiable_gate import Gate, State, Measurement, ThetaGate
-from typing import Callable, List, Iterable, Optional
+from typing import Callable, List, Iterable, Optional, Union
 from dataclasses import dataclass
 import torch
+from copy import deepcopy
 from torch import nn
 from collections import deque
 from datatypes import *
@@ -50,11 +51,11 @@ class CircuitChannel(torch.nn.Module):
 
         for gate, where in self.flatgates_and_where()[::-1]:
             if isinstance(gate, ThetaGate):
-                psi = gate.reverse(psi)
+                psi = gate.apply_reverse(psi)
 
                 dU = gate.dgate_state()
                 dE_input = 2 * cdot(X, gate.apply_gate_state(dU, psi)).real
-                X = gate.reverse(X)
+                X = gate.apply_reverse(X)
 
                 dE_inputs_rev.append(dE_input)
                 inputs_rev.append(gate.input)
@@ -63,16 +64,16 @@ class CircuitChannel(torch.nn.Module):
                 m = outcomes.pop()
                 psi = checkpoints.pop()
                 p = p_conditional.pop()
-                X = gate.reverse(X, m) / torch.sqrt(p)
+                X = gate.apply_reverse(X, m) / torch.sqrt(p)
 
             else:
-                psi = gate.reverse(psi)
-                X = gate.reverse(X)
+                psi = gate.apply_reverse(psi)
+                X = gate.apply_reverse(X)
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
 
-    def flatgates_and_where(self):
+    def flatgates_and_where(self) -> List[Tuple[Gate, Any]]:
         gates_and_where = []
         for component in self.gates:
             if isinstance(component, CircuitChannel):
@@ -82,6 +83,14 @@ class CircuitChannel(torch.nn.Module):
             else:
                 gates_and_where.append((component, (component,)))
         return gates_and_where
+
+    def reverse(self):
+        self.gates = nn.ModuleList([gate.reverse() for gate in self.gates[::-1]])
+        return self
+
+    def get_reverse(self):
+        self = deepcopy(self)
+        return self.reverse()
 
     """
     Test utilities.

@@ -68,17 +68,17 @@ class TrotterSuzuki(CircuitChannel):
         U_0 = [Exp_i(H, self.T, 1 / (2 * self.steps)) for H in self.Layer2]
         U_1 = [Exp_i(H, self.T) for H in self.Layer1]
         U_2 = [Exp_i(H, self.T) for H in self.Layer2]
-        self.gates = U_0 + (U_1 + U_2) * (self.steps - 1) + U_1 + U_0
+        self.gates = nn.ModuleList(U_0 + (U_1 + U_2) * (self.steps - 1) + U_1 + U_0)
 
 
 class Exp_i(ThetaGate, nn.Module):
     hamiltonian: HamiltonianTerm = None
 
     def __init__(self, hamiltonian: HamiltonianTerm, T: Scalar = None, speed: float = 1.0):
+        nn.Module.__init__(self)
         self.hamiltonian = hamiltonian
         self.speed = speed
 
-        nn.Module.__init__(self)
         if T is None:
             self.input = nn.Parameter(torch.randn(1, config.gen))
         else:
@@ -95,10 +95,8 @@ class Exp_i(ThetaGate, nn.Module):
 
     def control(self, t):
         if self.diag:
-            return torch.exp(
-                -1j * t * self.speed * self.hamiltonian.strength * self.hamiltonian.H
-            )
+            return torch.exp(-1j * t * self.hamiltonian.strength * self.hamiltonian.H)
         else:
-            D = torch.exp(-1j * t * self.speed * self.hamiltonian.strength * self.eigs)
+            D = torch.exp(-1j * t * self.hamiltonian.strength * self.eigs)
             gate_state = self.U @ (D[:, None] * self.U.T)
             return gate_state

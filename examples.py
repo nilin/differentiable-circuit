@@ -94,32 +94,22 @@ class TFIM(Hamiltonian):
         self.terms = self.Ising + self.transverse
 
 
-class Block(CircuitChannel):
+class UnitaryBlock(CircuitChannel):
     def __init__(
         self,
         H: Hamiltonian,
         l: int = None,
         mixwith: List[int] = None,
-        # as_: List[Scalar],
-        # taus: List[Scalar],
-        # zetas: List[Scalar],
-        # mixwith: List[int] = [1] * 100,
         trottersteps: int = 1,
-        unitary: bool = False,
     ):
         torch.nn.Module.__init__(self)
         self.H = H
         gates = []
-
-        if not unitary:
-            gates.append(AddAncilla(0))
-
         H_shifted = shift_right(H, 1)
 
         if mixwith is None:
             mixwith = [1] * l
 
-        # for a, tau, zeta, mw in zip(as_, taus, zetas, mixwith):
         for i, mw in enumerate(mixwith):
             a = Parameter(torch.tensor(1.0))
             tau = Parameter(torch.tensor(1.0))
@@ -131,10 +121,22 @@ class Block(CircuitChannel):
             )
             gates.append(Exp_i(A(0, mw), zeta))
 
-        if not unitary:
-            gates.append(Measurement(0))
-
         self.gates = nn.ModuleList(gates)
+
+
+class Block(CircuitChannel):
+    def __init__(
+        self,
+        H: Hamiltonian,
+        l: int = None,
+        mixwith: List[int] = None,
+        trottersteps: int = 1,
+    ):
+        nn.Module.__init__(self)
+        A = AddAncilla(0)
+        U = UnitaryBlock(H, l, mixwith, trottersteps)
+        M = Measurement(0)
+        self.gates = nn.ModuleList([A, U, M])
 
 
 class ShortBlock(CircuitChannel):
@@ -144,20 +146,22 @@ class ShortBlock(CircuitChannel):
 
     def __init__(
         self,
-        H,
-        a: Scalar,
-        tau: Scalar,
-        zeta: Scalar,
+        H: Hamiltonian,
         mixwith: int = 1,
         trottersteps: int = 1,
     ):
-        self.gates = [
-            TrotterSuzuki(H.Ising, H.transverse, tau, trottersteps),
-            AddAncilla(0),
-            Exp_i(Z(0), a),
-            Exp_i(A(0, mixwith), zeta),
-            Measurement(0),
-        ]
+        a = Parameter(torch.tensor(1.0))
+        tau = Parameter(torch.tensor(1.0))
+        zeta = Parameter(torch.tensor(1.0))
+        self.gates = nn.ModuleList(
+            [
+                TrotterSuzuki(H.Ising, H.transverse, tau, trottersteps),
+                AddAncilla(0),
+                Exp_i(Z(0), a),
+                Exp_i(A(0, mixwith), zeta),
+                Measurement(0),
+            ]
+        )
 
 
 @dataclass

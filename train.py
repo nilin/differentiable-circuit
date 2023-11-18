@@ -21,11 +21,12 @@ class Problem:
     def __init__(self, n):
         self.n = n
         self.H = TFIM(self.n)
-        self.target = self.groundstate(self.H, self.n)
+        self.preptarget()
         self.Obs = lambda y: self.target * cdot(self.target, y)
 
     def preptarget(self):
-        self.target = self.groundstate()
+        gs = self.groundstate(self.H, self.n)
+        self.target = torch.cat([gs, torch.zeros_like(gs)])
         self.Obs = lambda y: self.target * cdot(self.target, y)
 
     @staticmethod
@@ -36,9 +37,9 @@ class Problem:
 
 
 class Circuit(CircuitChannel):
-    def __init__(self, l, d, problem):
+    def __init__(self, l, d, H):
         nn.Module.__init__(self)
-        self.gates = nn.ModuleList([Block(problem.H, l=l) for _ in range(d)])
+        self.gates = nn.ModuleList([UnitaryBlock(H, l=l) for _ in range(d)])
 
 
 def makedir(path):
@@ -72,12 +73,13 @@ if __name__ == "__main__":
     emph(f"{n}+1 qubits")
 
     problem = Problem(n)
-    block = Circuit(l, d, problem)
+    circuit = Circuit(l, d, problem.H)
+    # circuit = circuit.reverse()
 
-    optimizer = optim.Adam(block.parameters(), lr=0.01)
+    optimizer = optim.Adam(circuit.parameters(), lr=0.01)
     values = []
 
-    rho = ZeroState(n).density_matrix()
+    rho = ZeroState(n + 1).density_matrix()
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(problem.H, f"{outdir}/H.pt")
@@ -87,13 +89,13 @@ if __name__ == "__main__":
 
         torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho, f"{outdir}/rho_{epoch}.pt")
-        torch.save(block, f"{outdir}/block_{epoch}.pt")
-        torch.save(block.state_dict(), f"{outdir}/params_{epoch}.pt")
+        torch.save(circuit, f"{outdir}/block_{epoch}.pt")
+        torch.save(circuit.state_dict(), f"{outdir}/params_{epoch}.pt")
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            rho_out = block.apply_to_density_matrix(rho)
+            rho_out = circuit.apply_to_density_matrix(rho)
             value = cdot(problem.target, rho_out @ problem.target).real
 
             loss = -value

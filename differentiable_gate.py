@@ -67,24 +67,43 @@ class Gate:
         M_rho_Mt = self.apply(M_rho.T.conj())
         return M_rho_Mt
 
+    def apply_reverse(self, psi: State):
+        raise NotImplementedError
+
+    def reverse(self, **kwargs):
+        raise NotImplementedError
+
 
 class ThetaGate(Gate):
+    p: Optional[int]
+    q: Optional[int]
+    input: Scalar
+    speed: float
+
     def __init__(self, p=None, q=None, input: Scalar = None):
         super().__init__(p=p, q=q)
         self.input = input
+        self.speed = 1.0
 
     def apply(self, psi: State, **kwargs):
-        gate_state = self.control(self.input)
+        gate_state = self.scaled_control(self.input)
         return self.apply_gate_state(gate_state, psi, **kwargs)
 
     def dgate_state(self) -> GateState:
-        dU = self.complex_out_jacobian(self.control, self.input)
+        dU = self.complex_out_jacobian(self.scaled_control, self.input)
         return dU
 
-    def reverse(self, psi: State):
-        gate_state = self.control(self.input)
+    def apply_reverse(self, psi: State):
+        gate_state = self.scaled_control(self.input)
         gate_state = self.adjoint(gate_state)
         return self.apply_gate_state(gate_state, psi)
+
+    def scaled_control(self, theta: Scalar) -> GateState:
+        return self.control(self.speed * theta)
+
+    def reverse(self):
+        self.speed = -self.speed
+        return self
 
     @staticmethod
     def complex_out_jacobian(f, t):
@@ -119,7 +138,7 @@ class Measurement(nn.Module, Gate):
 
         return self.outcome_tuple(psi_post, outcome, p_outcome)
 
-    def reverse(self, psi: State, outcome: bool):
+    def apply_reverse(self, psi: State, outcome: bool):
         N = 2 * len(psi)
         _0, _1 = self.implementation.split_by_bit_p(N, self.p)
         psi_out = torch.zeros(N, dtype=psi.dtype, device=psi.device)
@@ -153,6 +172,6 @@ class AddAncilla(Gate, torch.nn.Module):
         psi_out[_0] += psi
         return psi_out
 
-    def reverse(self, psi: State):
+    def apply_reverse(self, psi: State):
         _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
         return psi[_0]
