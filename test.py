@@ -33,7 +33,7 @@ class TestGradChannel:
         self.target = examples.HaarState(
             self.n, torch.Generator(device=config.device)
         ).pure_state()
-        self.Obs = lambda y: self.target * cdot(self.target, y)
+        self.Obs = lambda y: torch.abs(cdot(self.target, y) ** 2)
 
     def groundstate(self):
         H = self.H.create_dense(self.n)
@@ -50,7 +50,6 @@ class TestGradChannel:
 
     def density_matrix_grad(self):
         rho = self.psi0[:, None] * self.psi0[None, :].conj()
-        # rho = self.psi0.density_matrix()
         rho_out = self.circuit.apply_to_density_matrix(rho)
 
         value = cdot(self.target, rho_out @ self.target).real
@@ -72,7 +71,7 @@ class TestGradUnitary(TestGradChannel):
         self.target = examples.HaarState(
             self.n + 1, torch.Generator(device=config.device)
         ).pure_state()
-        self.Obs = lambda y: self.target * cdot(self.target, y)
+        self.Obs = lambda y: torch.abs(cdot(self.target, y) ** 2)
 
     def groundstate(self):
         H = self.H.create_dense(self.n)

@@ -36,18 +36,28 @@ class CircuitChannel(torch.nn.Module):
     def optimal_control(
         self,
         psi: State,
-        Obs: Callable[[State], State],
+        Obs: Callable[State, State] = None,
+        outcome_values: List[float] = None,
         randomness: Iterable[uniform01] = [],
     ):
         psi_t, o, p, ch = self.apply(psi, randomness, register=True)
-        E = cdot(psi_t, Obs(psi_t)).real
 
-        (Xt,) = torch.autograd.grad(E, psi_t, retain_graph=True)
-        Xt = Xt.conj()
+        E = 0
 
-        dObs_dp = [0 for _ in p]
+        if Obs is None:
+            Xt = torch.zeros_like(psi_t)
+        else:
+            E += Obs(psi_t)
+            (Xt,) = torch.autograd.grad(E, psi_t, retain_graph=True)
+            Xt = Xt.conj()
 
-        return E, p, self.backprop(psi_t, Xt, dObs_dp, o, p, ch)
+        if outcome_values is None:
+            dVal_dp = [0.0] * len(o)
+        else:
+            E += sum([o_i * v_i for o_i, v_i in zip(o, outcome_values)])
+            dVal_dp = outcome_values
+
+        return E, p, self.backprop(psi_t, Xt, dVal_dp, o, p, ch)
 
     def backprop(self, psi, X, dObs_dp, outcomes, p_conditional, checkpoints):
         dE_inputs_rev = []
