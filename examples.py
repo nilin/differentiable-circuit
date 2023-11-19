@@ -132,14 +132,18 @@ class UnitaryBlock(CircuitChannel):
 class Block(CircuitChannel):
     def __init__(
         self,
-        H: Hamiltonian,
-        l: int = None,
-        mixwith: List[int] = None,
-        trottersteps: int = 1,
+        H: Optional[Hamiltonian] = None,
+        l: Optional[int] = None,
+        mixwith: Optional[List[int]] = None,
+        trottersteps: Optional[int] = 1,
+        unitaryblock: Optional[UnitaryBlock] = None,
     ):
         nn.Module.__init__(self)
         A = AddAncilla(0)
-        U = UnitaryBlock(H, l, mixwith, trottersteps)
+        if unitaryblock is None:
+            U = UnitaryBlock(H, l, mixwith, trottersteps)
+        else:
+            U = unitaryblock
         M = Measurement(0)
         self.gates = nn.ModuleList([A, U, M])
 

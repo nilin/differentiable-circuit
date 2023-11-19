@@ -23,6 +23,24 @@ def makedir(path):
     return path
 
 
+def emph(txt):
+    print(f"\n{80 * '_'}\n\n{txt}\n{80*'_'}\n")
+
+
+def groundstate(H: Hamiltonian, n: int):
+    H = H.create_dense(n)
+    energies, states = torch.linalg.eigh(H)
+    return states[:, 0]
+
+
+def testcircuit(circuit, target):
+    I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
+    rho_t = circuit.apply_to_density_matrix(I)
+    value = cdot(target, rho_t @ target).real
+    # print(f"Circuit value: {value:.5f}")
+    return value
+
+
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--n", type=int, default=6)
@@ -38,25 +56,12 @@ if __name__ == "__main__":
     d = args.d
     outdir = makedir(args.outdir)
 
-    def emph(txt):
-        print(f"\n{80 * '_'}\n\n{txt}\n{80*'_'}\n")
-
     emph(f"{n}+1 qubits")
 
-    def groundstate(H: Hamiltonian, n: int):
-        H = H.create_dense(n)
-        energies, states = torch.linalg.eigh(H)
-        return states[:, 0]
-
     H = TFIM(n)
-    # reverse_block = UnitaryBlock(H, l=l, reverse=True)
-
-    block = UnitaryBlock(H, l=l)
-    reverse_block = block.get_reverse()
-
-    optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
     target = groundstate(H, n)
     rho_target = target[:, None] * target[None, :].conj()
+
     add_random_ancilla = AddRandomAncilla(p=0)
     restrict = RestrictMeasurementOutcome(p=0)
 
@@ -66,11 +71,12 @@ if __name__ == "__main__":
     blocks = []
 
     for epoch in range(args.epochs):
-        torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
+        block = UnitaryBlock(H, l=l)
+        reverse_block = block.get_reverse()
+        optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
+
+        # torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho_target, f"{outdir}/rho_t-{epoch}.pt")
-        circuit = CircuitChannel(gates=blocks)
-        torch.save(circuit, f"{outdir}/circuit_{epoch}.pt")
-        torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
@@ -92,11 +98,18 @@ if __name__ == "__main__":
                 f.write(f"{epoch} {i} {value.detach().cpu().numpy()}\n")
 
         rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
-        emph(f"After {epoch+1} epochs: {value:.5f}")
+        # emph(f"After {epoch+1} epochs: {value:.5f}")
 
         forward_block = reverse_block.get_reverse(mode="measurement")
         torch.save(forward_block, f"{outdir}/block_t-{epoch}.pt")
         torch.save(forward_block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
-        blocks.append(forward_block)
-        reverse_block = copy.deepcopy(reverse_block)
+        blocks.append(Block(unitaryblock=forward_block))
+        # reverse_block = copy.deepcopy(reverse_block)
+
+        circuit = CircuitChannel(gates=blocks)
+        torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
+        torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
+
+        circuitvalue = testcircuit(circuit, target)
+        emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
