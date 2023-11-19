@@ -52,3 +52,12 @@ class TorchGate(GateImplementation):
                     psi_out[I] += gate_state[i, j] * psi[J]
         del psi
         return psi_out
+
+
+def add_qubit(p, beta, psi):
+    _0, _1 = split_by_bit_p(2 * len(psi), p)
+    psi_out = torch.zeros(2 * len(psi), device=device, dtype=tcomplex)
+    psi_out[_0] = beta[0] * psi
+    psi_out[_1] = beta[1] * psi
+    del psi
+    return psi_out

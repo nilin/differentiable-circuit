@@ -101,6 +101,7 @@ class UnitaryBlock(CircuitChannel):
         l: int = None,
         mixwith: List[int] = None,
         trottersteps: int = 1,
+        reverse: bool = False,
     ):
         torch.nn.Module.__init__(self)
         self.H = H
@@ -111,15 +112,19 @@ class UnitaryBlock(CircuitChannel):
             mixwith = [1] * l
 
         for i, mw in enumerate(mixwith):
-            a = Parameter(torch.tensor(1.0))
-            tau = Parameter(torch.tensor(1.0))
-            zeta = Parameter(torch.tensor(1.0))
+            a = nn.Parameter(torch.randn(1))
+            tau = nn.Parameter(torch.randn(1))
+            zeta = nn.Parameter(torch.randn(1))
 
-            gates.append(Exp_i(A2(0, mw), a))
-            gates.append(
-                TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps)
-            )
-            gates.append(Exp_i(A(0, mw), zeta))
+            step = [
+                Exp_i(Z(0), a),
+                TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps),
+                Exp_i(A(0, mw), zeta),
+            ]
+            if reverse:
+                gates = gates + step[::-1]
+            else:
+                gates = gates + step
 
         self.gates = nn.ModuleList(gates)
 
@@ -150,9 +155,9 @@ class ShortBlock(CircuitChannel):
         mixwith: int = 1,
         trottersteps: int = 1,
     ):
-        a = Parameter(torch.tensor(1.0))
-        tau = Parameter(torch.tensor(1.0))
-        zeta = Parameter(torch.tensor(1.0))
+        a = nn.Parameter(torch.randn(1))
+        tau = nn.Parameter(torch.randn(1))
+        zeta = nn.Parameter(torch.randn(1))
         self.gates = nn.ModuleList(
             [
                 TrotterSuzuki(H.Ising, H.transverse, tau, trottersteps),

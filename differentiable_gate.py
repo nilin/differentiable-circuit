@@ -2,6 +2,7 @@ import config
 from typing import Optional
 from dataclasses import dataclass, KW_ONLY
 import torch
+import gate_implementation
 from torch.autograd.functional import jacobian as torch_jacobian
 from datatypes import *
 from collections import namedtuple
@@ -144,6 +145,10 @@ class RestrictMeasurementOutcome(AddAncilla):
     def _reverse(self, **kwargs):
         return AddAncilla(self.p)
 
+    # def apply_to_density_matrix(self, rho: DensityMatrix):
+    #    _0, _1 = gate_implementation.split_by_bit_p(len(rho), self.p)
+    #    return rho[_0][:, _0]
+
 
 class AddRandomAncilla(Gate, torch.nn.Module):
     p: int
@@ -153,13 +158,33 @@ class AddRandomAncilla(Gate, torch.nn.Module):
         self.p = p
 
     def apply(self, psi: State):
-        raise NotImplementedError
+        beta = torch.randn(2, dtype=tcomplex, device=psi.device)
+        beta /= torch.linalg.norm(beta)
+        return gate_implementation.add_qubit(self.p, beta, psi)
 
     def apply_reverse(self, psi: State):
         raise NotImplementedError
 
     def _reverse(self, **kwargs):
         return Measurement(self.p)
+
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        # rho_out = torch.zeros(
+        #    (2 * len(rho), 2 * len(rho)), dtype=rho.dtype, device=rho.device
+        # )
+        # _0, _1 = gate_implementation.split_by_bit_p(2 * len(rho), self.p)
+        # rho_out[_0][:, _0] += rho
+        # rho_out[_1][:, _1] += rho
+        # return rho_out / 2
+
+        assert self.p == 0
+        zero = torch.zeros_like(rho)
+        return (
+            torch.cat(
+                [torch.cat([rho, zero], axis=1), torch.cat([zero, rho], axis=1)], axis=0
+            )
+            / 2
+        )
 
 
 class Measurement(nn.Module, Gate):
@@ -195,6 +220,9 @@ class Measurement(nn.Module, Gate):
         psi_out[[_0, _1][outcome]] += psi
         return psi_out
 
+    def _reverse(self, **kwargs):
+        return AddAncilla(self.p)
+
     """
     Test utilities.
     """
@@ -206,6 +234,3 @@ class Measurement(nn.Module, Gate):
         _0, _1 = self.implementation.split_by_bit_p(len(rho), self.p)
         out = rho[_0][:, _0] + rho[_1][:, _1]
         return out
-
-    def _reverse(self, **kwargs):
-        return AddAncilla(self.p)

@@ -61,7 +61,7 @@ class TrotterSuzuki(CircuitChannel):
         self.Layer2 = Layer2
         self.steps = steps
         if T is None:
-            self.T = nn.Parameter(torch.randn(1, config.gen))
+            self.T = nn.Parameter(torch.randn(1))
         else:
             self.T = T
 
@@ -80,7 +80,7 @@ class Exp_i(ThetaGate, nn.Module):
         self.speed = speed
 
         if T is None:
-            self.input = nn.Parameter(torch.randn(1, config.gen))
+            self.input = nn.Parameter(torch.randn(1))
         else:
             self.input = T
 

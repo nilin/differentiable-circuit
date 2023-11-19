@@ -49,12 +49,16 @@ if __name__ == "__main__":
         return states[:, 0]
 
     H = TFIM(n)
-    block = Block(H, l=l)
-    reverse_block = block.get_reverse(mode="restrict")
+    # reverse_block = UnitaryBlock(H, l=l, reverse=True)
+
+    block = UnitaryBlock(H, l=l)
+    reverse_block = block.get_reverse()
 
     optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
     target = groundstate(H, n)
-    rho_out = target[:, None] * target[None, :].conj()
+    rho_target = target[:, None] * target[None, :].conj()
+    add_random_ancilla = AddRandomAncilla(p=0)
+    restrict = RestrictMeasurementOutcome(p=0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
@@ -63,7 +67,7 @@ if __name__ == "__main__":
 
     for epoch in range(args.epochs):
         torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
-        torch.save(rho_out, f"{outdir}/rho_t-{epoch}.pt")
+        torch.save(rho_target, f"{outdir}/rho_t-{epoch}.pt")
         circuit = CircuitChannel(gates=blocks)
         torch.save(circuit, f"{outdir}/circuit_{epoch}.pt")
         torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
@@ -71,11 +75,15 @@ if __name__ == "__main__":
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            rho_in_restricted = reverse_block.apply_to_density_matrix(rho_out)
+            rho_out = add_random_ancilla.apply_to_density_matrix(rho_target)
+            rho_in = reverse_block.apply_to_density_matrix(rho_out)
+            rho_in_restricted = restrict.apply_to_density_matrix(rho_in)
             value = rho_in_restricted.trace().real
 
             loss = -value
             loss.backward()
+
+            # breakpoint()
             optimizer.step()
 
             print(value)
@@ -83,8 +91,7 @@ if __name__ == "__main__":
             with open(f"{outdir}/values.txt", "a") as f:
                 f.write(f"{epoch} {i} {value.detach().cpu().numpy()}\n")
 
-        rho_in = rho_in_restricted / rho_in_restricted.trace().real
-        rho_out = rho_in.detach()
+        rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
         emph(f"After {epoch+1} epochs: {value:.5f}")
 
         forward_block = reverse_block.get_reverse(mode="measurement")
@@ -92,3 +99,4 @@ if __name__ == "__main__":
         torch.save(forward_block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
         blocks.append(forward_block)
+        reverse_block = copy.deepcopy(reverse_block)
