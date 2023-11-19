@@ -3,6 +3,7 @@ from test import TestGradChannel
 from examples import *
 from torch import optim
 import os
+from differentiable_circuit import *
 from datatypes import *
 from torch.nn import Parameter, ParameterList
 import torch
@@ -48,24 +49,29 @@ if __name__ == "__main__":
         return states[:, 0]
 
     H = TFIM(n)
-    circuit = Block(H, l=l)
-    reverse_circuit = circuit.get_reverse()
+    block = Block(H, l=l)
+    reverse_block = block.get_reverse(mode="restrict")
 
-    optimizer = optim.Adam(reverse_circuit.parameters(), lr=0.01)
+    optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
     target = groundstate(H, n)
     rho_out = target[:, None] * target[None, :].conj()
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
 
+    blocks = []
+
     for epoch in range(args.epochs):
         torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho_out, f"{outdir}/rho_t-{epoch}.pt")
+        circuit = CircuitChannel(gates=blocks)
+        torch.save(circuit, f"{outdir}/circuit_{epoch}.pt")
+        torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            rho_in_restricted = reverse_circuit.apply_to_density_matrix(rho_out)
+            rho_in_restricted = reverse_block.apply_to_density_matrix(rho_out)
             value = rho_in_restricted.trace().real
 
             loss = -value
@@ -81,8 +87,8 @@ if __name__ == "__main__":
         rho_out = rho_in.detach()
         emph(f"After {epoch+1} epochs: {value:.5f}")
 
-        forward_circuit = reverse_circuit.get_reverse()
-        torch.save(forward_circuit, f"{outdir}/block_t-{epoch}.pt")
-        torch.save(forward_circuit.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+        forward_block = reverse_block.get_reverse(mode="measurement")
+        torch.save(forward_block, f"{outdir}/block_t-{epoch}.pt")
+        torch.save(forward_block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
-    emph("Final state:")
+        blocks.append(forward_block)

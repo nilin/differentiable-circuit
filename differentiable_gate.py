@@ -129,11 +129,13 @@ class AddAncilla(Gate, torch.nn.Module):
     def apply_reverse(self, psi: State):
         return RestrictMeasurementOutcome.apply(self, psi)
 
-    def _reverse(self, mode="restrict", **kwargs):
+    def _reverse(self, mode, **kwargs):
         if mode == "restrict":
             return RestrictMeasurementOutcome(self.p)
-        else:
+        elif mode == "measurement":
             return Measurement(self.p)
+        else:
+            raise ValueError(f"mode restrict or measurement")
 
 
 class RestrictMeasurementOutcome(AddAncilla):

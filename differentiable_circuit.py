@@ -11,6 +11,10 @@ from datatypes import *
 class CircuitChannel(torch.nn.Module):
     gates: nn.ModuleList
 
+    def __init__(self, gates: List[Gate]):
+        torch.nn.Module.__init__(self)
+        self.gates = nn.ModuleList(gates)
+
     def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []
         p_conditional = []
