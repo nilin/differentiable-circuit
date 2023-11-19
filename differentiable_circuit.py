@@ -101,13 +101,21 @@ class CircuitChannel(torch.nn.Module):
                 gates_and_where.append((component, (component,)))
         return gates_and_where
 
-    def reverse(self):
-        self.gates = nn.ModuleList([gate.reverse() for gate in self.gates[::-1]])
+    def _reverse(self, seen, **kwargs):
+        newgates = []
+        for gate in self.gates[::-1]:
+            if gate in seen:
+                newgates.append(gate)
+            else:
+                seen.add(gate)
+                newgates.append(gate._reverse(seen=seen, **kwargs))
+
+        self.gates = nn.ModuleList(newgates)
         return self
 
-    def get_reverse(self):
+    def get_reverse(self, **kwargs):
         self = deepcopy(self)
-        return self.reverse()
+        return self._reverse(seen=set(), **kwargs)
 
     """
     Test utilities.

@@ -70,7 +70,7 @@ class Gate:
     def apply_reverse(self, psi: State):
         raise NotImplementedError
 
-    def reverse(self):
+    def _reverse(self, **kwargs):
         raise NotImplementedError
 
 
@@ -101,7 +101,7 @@ class ThetaGate(Gate):
     def scaled_control(self, theta: Scalar) -> GateState:
         return self.control(self.speed * theta)
 
-    def reverse(self):
+    def _reverse(self, **kwargs):
         self.speed = -self.speed
         return self
 
@@ -127,14 +127,25 @@ class AddAncilla(Gate, torch.nn.Module):
         return psi_out
 
     def apply_reverse(self, psi: State):
-        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
-        return psi[_0]
+        return RestrictMeasurementOutcome.apply(self, psi)
 
-    def reverse(self, mode="restrict"):
+    def _reverse(self, mode="restrict", **kwargs):
         if mode == "restrict":
             return RestrictMeasurementOutcome(self.p)
         else:
             return Measurement(self.p)
+
+
+class RestrictMeasurementOutcome(AddAncilla):
+    def apply(self, psi: State):
+        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
+        return psi[_0]
+
+    def apply_reverse(self, psi: State):
+        return AddAncilla.apply(self, psi)
+
+    def _reverse(self, **kwargs):
+        return AddAncilla(self.p)
 
 
 class Measurement(nn.Module, Gate):
@@ -182,16 +193,5 @@ class Measurement(nn.Module, Gate):
         out = rho[_0][:, _0] + rho[_1][:, _1]
         return out
 
-    def reverse(self):
-        return AddAncilla(self.p)
-
-
-class RestrictMeasurementOutcome(Measurement):
-    def apply(self, psi: State):
-        return AddAncilla.apply_reverse(self, psi)
-
-    def apply_reverse(self, psi: State):
-        return AddAncilla.apply(self, psi)
-
-    def reverse(self):
+    def _reverse(self, **kwargs):
         return AddAncilla(self.p)

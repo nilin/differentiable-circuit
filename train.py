@@ -24,8 +24,8 @@ def makedir(path):
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--n", type=int, default=8)
-    argparser.add_argument("--l", type=int, default=40)
+    argparser.add_argument("--n", type=int, default=6)
+    argparser.add_argument("--l", type=int, default=6)
     argparser.add_argument("--d", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=10000)
     argparser.add_argument("--iterations_per_epoch", type=int, default=10)
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     H = TFIM(n)
     circuit = Block(H, l=l)
-    reverse_circuit = circuit.reverse()
+    reverse_circuit = circuit.get_reverse()
 
     optimizer = optim.Adam(reverse_circuit.parameters(), lr=0.01)
     target = groundstate(H, n)
