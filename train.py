@@ -27,8 +27,8 @@ if __name__ == "__main__":
     argparser.add_argument("--n", type=int, default=6)
     argparser.add_argument("--l", type=int, default=6)
     argparser.add_argument("--d", type=int, default=1)
-    argparser.add_argument("--epochs", type=int, default=10000)
-    argparser.add_argument("--iterations_per_epoch", type=int, default=10)
+    argparser.add_argument("--epochs", type=int, default=100)
+    argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
     args, _ = argparser.parse_known_args()
 
@@ -60,9 +60,7 @@ if __name__ == "__main__":
 
     for epoch in range(args.epochs):
         torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
-        torch.save(rho_out, f"{outdir}/rho_{epoch}.pt")
-        torch.save(circuit, f"{outdir}/block_{epoch}.pt")
-        torch.save(circuit.state_dict(), f"{outdir}/params_{epoch}.pt")
+        torch.save(rho_out, f"{outdir}/rho_t-{epoch}.pt")
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
@@ -82,5 +80,9 @@ if __name__ == "__main__":
         rho_in = rho_in_restricted / rho_in_restricted.trace().real
         rho_out = rho_in.detach()
         emph(f"After {epoch+1} epochs: {value:.5f}")
+
+        forward_circuit = reverse_circuit.get_reverse()
+        torch.save(forward_circuit, f"{outdir}/block_t-{epoch}.pt")
+        torch.save(forward_circuit.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
     emph("Final state:")
