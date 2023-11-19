@@ -7,7 +7,7 @@ from datatypes import *
 from collections import namedtuple
 from torch import nn
 
-from datatypes import GateImplementation, GateState, State
+from datatypes import GateImplementation, GateState, State, uniform01
 
 
 class Gate:
@@ -112,6 +112,31 @@ class ThetaGate(Gate):
         return torch.complex(real, imag)
 
 
+class AddAncilla(Gate, torch.nn.Module):
+    p: int
+
+    def __init__(self, p=0):
+        torch.nn.Module.__init__(self)
+        self.p = p
+
+    def apply(self, psi: State):
+        N = 2 * len(psi)
+        psi_out = torch.zeros((N,) + psi.shape[1:], dtype=psi.dtype, device=psi.device)
+        _0, _1 = self.implementation.split_by_bit_p(N, self.p)
+        psi_out[_0] += psi
+        return psi_out
+
+    def apply_reverse(self, psi: State):
+        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
+        return psi[_0]
+
+    def reverse(self, mode="restrict"):
+        if mode == "restrict":
+            return RestrictMeasurementOutcome(self.p)
+        else:
+            return Measurement(self.p)
+
+
 class Measurement(nn.Module, Gate):
     implementation = config.get_default_gate_implementation()
     outcome_tuple = namedtuple("Measurement", ["psi", "outcome", "p_outcome"])
@@ -161,23 +186,12 @@ class Measurement(nn.Module, Gate):
         return AddAncilla(self.p)
 
 
-class AddAncilla(Gate, torch.nn.Module):
-    p: int
-
-    def __init__(self, p=0):
-        torch.nn.Module.__init__(self)
-        self.p = p
-
+class RestrictMeasurementOutcome(Measurement):
     def apply(self, psi: State):
-        N = 2 * len(psi)
-        psi_out = torch.zeros((N,) + psi.shape[1:], dtype=psi.dtype, device=psi.device)
-        _0, _1 = self.implementation.split_by_bit_p(N, self.p)
-        psi_out[_0] += psi
-        return psi_out
+        return AddAncilla.apply_reverse(self, psi)
 
     def apply_reverse(self, psi: State):
-        _0, _1 = self.implementation.split_by_bit_p(len(psi), self.p)
-        return psi[_0]
+        return AddAncilla.apply(self, psi)
 
     def reverse(self):
-        return Measurement(self.p)
+        return AddAncilla(self.p)
