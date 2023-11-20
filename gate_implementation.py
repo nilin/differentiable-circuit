@@ -20,9 +20,11 @@ def split_by_bits_fn(N: int, positions: List[int]):
 
 def split_by_bits(N: int, positions: List[int]):
     k = len(positions)
-    get_indices = split_by_bits_fn(N, positions)
+    where_all_k_qubits_0, blocksizes = get_where_all_k_qubits_0(N, positions)
+
     for i in range(2**k):
-        yield get_indices(i)
+        shift = dot_with_binary_expansion(blocksizes, i)
+        yield where_all_k_qubits_0 + shift
 
 
 """helper functions for obtaining indices"""
@@ -86,17 +88,32 @@ def apply_sparse_gate(positions: List[int], k_qubit_sparse_matrix: Tuple, psi: t
 
 
 def apply_gate_diag(positions: List[int], k_qubit_diag: torch.Tensor, psi: torch.Tensor):
-    i = torch.arange(len(k_qubit_diag))
-    indices = torch.stack([i, i], axis=1)
-    sparse = (indices, k_qubit_diag)
-    return apply_sparse_gate(positions, sparse, psi)
+    """version 1"""
+    N = len(psi)
+    psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
+
+    for i, I in enumerate(split_by_bits(N, positions)):
+        if k_qubit_diag[i] != 0:
+            psi_out[I] += k_qubit_diag[i] * psi[I]
+
+    del psi
+    return psi_out
+
+    """version 2"""
+    # i = torch.arange(len(k_qubit_diag))
+    # indices = torch.stack([i, i], axis=1)
+    # sparse = (indices, k_qubit_diag)
+    # return apply_sparse_gate(positions, sparse, psi)
+
+
+"""changing system size"""
 
 
 def apply_on_complement(exclude_positions: Tuple, gate_fn: Callable, psi: torch.Tensor):
     psi_out = torch.zeros_like(psi)
     for I in split_by_bits(len(psi), exclude_positions):
         psi_out[I] = gate_fn(psi[I])
-    return psi
+    return psi_out
 
 
 def add_qubits(positions, beta, psi):

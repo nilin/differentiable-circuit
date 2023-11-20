@@ -36,7 +36,7 @@ class TestGradChannel:
         self.Obs = lambda y: torch.abs(cdot(self.target, y) ** 2)
 
     def groundstate(self):
-        H = self.H.create_dense(self.n)
+        H = self.H.create_dense_matrix(self.n)
         energies, states = torch.linalg.eigh(H)
         return states[:, 0]
 
@@ -74,7 +74,7 @@ class TestGradUnitary(TestGradChannel):
         self.Obs = lambda y: torch.abs(cdot(self.target, y) ** 2)
 
     def groundstate(self):
-        H = self.H.create_dense(self.n)
+        H = self.H.create_dense_matrix(self.n)
         energies, states = torch.linalg.eigh(H)
         return torch.cat([states[:, 0], torch.zeros_like(states[:, 0])])
 

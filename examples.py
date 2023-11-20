@@ -83,12 +83,18 @@ class UnitaryBlock(CircuitChannel):
         mixwith: List[int] = None,
         trottersteps: int = 1,
         use_trotter: bool = True,
+        n: int = None,
         reverse: bool = False,
     ):
         torch.nn.Module.__init__(self)
         self.H = H
         gates = []
-        H_shifted = shift_right(H, 1)
+
+        if use_trotter:
+            H_shifted = shift_right(H, 1)
+        else:
+            H_shifted = H.to_dense(n)
+            H_shifted.ignore_positions = (0,)
 
         if mixwith is None:
             mixwith = [1] * l
@@ -101,8 +107,7 @@ class UnitaryBlock(CircuitChannel):
             if use_trotter:
                 e_iH = TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps)
             else:
-                pass
-                # e_iH= [Exp_i(H, tau)]
+                e_iH = Exp_i(H_shifted, tau)
 
             step = [Exp_i(Z(0), a), e_iH, Exp_i(A(0, mw), zeta)]
             if reverse:

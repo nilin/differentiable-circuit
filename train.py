@@ -29,7 +29,7 @@ def emph(txt):
 
 
 def groundstate(H: Hamiltonian, n: int):
-    H = H.create_dense(n)
+    H = H.create_dense_matrix(n)
     energies, states = torch.linalg.eigh(H)
     return states[:, 0]
 
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     blocks = []
 
     for epoch in range(args.epochs):
-        block = UnitaryBlock(H, l=l, trottersteps=args.trottersteps)
+        block = UnitaryBlock(H, l=l, use_trotter=False, n=n)
         reverse_block = block.get_reverse()
         optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
 

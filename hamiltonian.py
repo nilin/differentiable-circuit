@@ -1,5 +1,6 @@
-from differentiable_gate import Scalar, Gate, ThetaGate
+from differentiable_gate import GateState, Scalar, Gate, ThetaGate, Op
 from differentiable_circuit import State, CircuitChannel
+import differentiable_gate
 from typing import List
 from torch import nn
 import config
@@ -11,6 +12,7 @@ import torch
 from differentiable_gate import (
     Gate,
     State,
+    DenseGate,
 )
 import numpy as np
 from datatypes import *
@@ -19,8 +21,9 @@ from datatypes import *
 """Define gates as Hamiltonian evolution"""
 
 
-@dataclass()
 class HamiltonianTerm(Gate):
+    H: GateState
+
     def __init__(self, *positions):
         Gate.__init__(self, positions)
 
@@ -34,7 +37,13 @@ class HamiltonianTerm(Gate):
 
 
 @dataclass
-class Hamiltonian:
+class DenseHamiltonian(HamiltonianTerm, DenseGate):
+    diag = False
+    H: GateState
+
+
+@dataclass
+class Hamiltonian(Op):
     terms = List[HamiltonianTerm]
 
     def apply(self, psi: State):
@@ -50,8 +59,9 @@ class Hamiltonian:
     Test utilities.
     """
 
-    def create_dense(self, n):
-        return Gate.create_dense(self, n)
+    def to_dense(self, n):
+        H = self.create_dense_matrix(n)
+        return DenseHamiltonian(H)
 
 
 class TrotterSuzuki(CircuitChannel):
@@ -92,6 +102,10 @@ class Exp_i(ThetaGate, nn.Module):
         self.geometry_like(self.hamiltonian)
         self.compile()
 
+    def apply_gate_state(self, gate_state: GateState, psi: State):
+        """use the geometry of the hamiltonian"""
+        return self.hamiltonian.apply_gate_state(gate_state, psi)
+
     def compile(self):
         if not self.diag:
             # eigs, U = np.linalg.eigh(self.hamiltonian.H)
@@ -99,14 +113,14 @@ class Exp_i(ThetaGate, nn.Module):
             self.eigs = torchcomplex(eigs)
             self.U = torchcomplex(U)
 
-    def apply_to_eigs_H(self, fn):
+    def transform_eigs_H(self, fn):
         if self.diag:
             return fn(self.hamiltonian.H)
         else:
             return self.U @ (fn(self.eigs)[:, None] * self.U.T)
 
     def control(self, t: Scalar):
-        return self.apply_to_eigs_H(lambda eigs: torch.exp(-1j * t.to(device) * eigs))
+        return self.transform_eigs_H(lambda eigs: torch.exp(-1j * t.to(device) * eigs))
 
     # def dgate_state(self) -> GateState:
     #    if self.diag:

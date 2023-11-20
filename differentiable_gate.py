@@ -8,18 +8,34 @@ from datatypes import *
 from collections import namedtuple
 from torch import nn
 import warnings
+from functools import partial
 
 
 from datatypes import GateState, State, uniform01
 
 
-class Gate:
+class Op:
+    def apply(self, psi: State):
+        raise NotImplementedError
+
+    def create_dense_matrix(self, n):
+        I = torch.eye(2**n, dtype=tcomplex, device=config.device)
+        return self.apply(I)
+
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        M_rho = self.apply(rho)
+        M_rho_Mt = self.apply(M_rho.T.conj())
+        return M_rho_Mt
+
+
+class Gate(Op):
     """
     Classes inheriting from Gate need to specify the following:
     diag: bool
     k: int
     """
 
+    ignore_positions: Tuple[int] = ()
     k: int
     diag: bool
     positions: Tuple[int]
@@ -30,9 +46,14 @@ class Gate:
 
     def apply_gate_state(self, gate_state: GateState, psi: State):
         if self.diag:
-            return gate_implementation.apply_gate_diag(self.positions, gate_state, psi)
+            gate = partial(gate_implementation.apply_gate_diag, self.positions, gate_state)
+            # return gate_implementation.apply_gate_diag(self.positions, gate_state, psi)
         else:
-            return gate_implementation.apply_gate(self.positions, gate_state, psi)
+            gate = partial(gate_implementation.apply_gate, self.positions, gate_state)
+            # return gate_implementation.apply_gate(self.positions, gate_state, psi)
+
+        # return gate(psi)
+        return gate_implementation.apply_on_complement(self.ignore_positions, gate, psi)
 
     def adjoint(self, gate_state: GateState) -> GateState:
         if self.diag:
@@ -48,15 +69,6 @@ class Gate:
     """
     Test utilities.
     """
-
-    def create_dense(self, n):
-        I = torch.eye(2**n, dtype=tcomplex, device=config.device)
-        return self.apply(I)
-
-    def apply_to_density_matrix(self, rho: DensityMatrix):
-        M_rho = self.apply(rho)
-        M_rho_Mt = self.apply(M_rho.T.conj())
-        return M_rho_Mt
 
     def apply_reverse(self, psi: State):
         raise NotImplementedError
@@ -113,3 +125,16 @@ class ThetaGate(Gate):
         real = torch_jacobian(lambda x: f(x).real, t)
         imag = torch_jacobian(lambda x: f(x).imag, t)
         return torch.complex(real, imag)
+
+
+class DenseGate(Gate):
+    k = None
+    positions = ()
+
+    def apply_gate_state(self, gate_state: GateState, psi: State):
+        if self.diag:
+            gate = lambda psi: gate_state.to(tcomplex) * psi
+        else:
+            gate = lambda psi: gate_state.to(tcomplex) @ psi
+
+        return gate_implementation.apply_on_complement(self.ignore_positions, gate, psi)
