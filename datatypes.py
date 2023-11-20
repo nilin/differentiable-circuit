@@ -43,7 +43,7 @@ def HS(rho1, rho2):
 
 
 def squared_overlap(phi, psi):
-    return torch.abs(cdot(phi, psi)) ** 2
+    return torch.abs(cdot(phi, psi) ** 2)
 
 
 def probabilitymass(x):

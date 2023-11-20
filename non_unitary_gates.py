@@ -30,8 +30,12 @@ class AddAncilla(SingleQubitGate):
 
 class RestrictMeasurementOutcome(AddAncilla):
     def apply(self, psi: State):
-        _0, _1 = gate_implementation.split_by_bits(len(psi), [self.p()])
+        _0, _1 = gate_implementation.split_by_bits(len(psi), self.positions)
         return psi[_0]
+
+    def probability(self, psi: State, outcome):
+        get_indices = gate_implementation.split_by_bits_fn(len(psi), self.positions)
+        return get_indices(outcome)
 
     def apply_reverse(self, psi: State):
         return AddAncilla.apply(self, psi)
@@ -98,6 +102,22 @@ class Measurement(SingleQubitGate):
 
     def apply(self, psi: State, u: uniform01, normalize=True):
         return self.measure(psi, u, normalize=normalize)
+
+    def apply_both(self, psi: State, normalize=False):
+        psi_0, out_0, p_0 = self.measure(psi, 0, normalize=normalize)
+        psi_1, out_1, p_1 = self.measure(psi, 1, normalize=normalize)
+        assert out_0 == False
+        assert out_1 == True
+
+        if normalize:
+            return psi_0, psi_1, p_0, p_1
+        else:
+            return psi_0, psi_1
+
+    def probability(self, psi: State, outcome):
+        get_indices = gate_implementation.split_by_bits_fn(len(psi), self.positions)
+        I = get_indices(outcome)
+        return probabilitymass(psi[I])
 
     def measure(self, psi: State, u: uniform01, normalize=True):
         _0, _1 = gate_implementation.split_by_bits(len(psi), self.positions)
