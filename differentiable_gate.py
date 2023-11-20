@@ -116,8 +116,12 @@ class ThetaGate(Gate):
     def scaled_control(self, theta: Scalar) -> GateState:
         return self.control(self.speed * theta)
 
-    def _reverse(self, **kwargs):
-        self.speed = -self.speed
+    def set_direction_forward(self):
+        self.speed = abs(self.speed)
+        return self
+
+    def set_direction_backward(self):
+        self.speed = -abs(self.speed)
         return self
 
     @staticmethod

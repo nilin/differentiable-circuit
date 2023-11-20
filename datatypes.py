@@ -38,6 +38,10 @@ def cdot(phi, psi):
     return phi.conj().dot(psi)
 
 
+def HS(rho1, rho2):
+    return torch.sum(rho1.conj() * rho2)
+
+
 def squared_overlap(phi, psi):
     return torch.abs(cdot(phi, psi)) ** 2
 

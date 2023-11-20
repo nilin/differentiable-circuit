@@ -10,6 +10,7 @@ from datatypes import *
 
 
 class CircuitChannel(torch.nn.Module):
+    forward = True
     gates: nn.ModuleList
 
     def __init__(self, gates: List[Gate]):
@@ -104,29 +105,45 @@ class CircuitChannel(torch.nn.Module):
                 ]
             else:
                 gates_and_where.append((component, (component,)))
-        return gates_and_where
 
-    def _reverse(self, seen, **kwargs):
-        newgates = []
-        for gate in self.gates[::-1]:
-            if gate in seen:
-                newgates.append(gate)
-            else:
-                seen.add(gate)
-                newgates.append(gate._reverse(seen=seen, **kwargs))
+        if self.forward:
+            return gates_and_where
+        else:
+            return gates_and_where[::-1]
 
-        self.gates = nn.ModuleList(newgates)
+    def set_direction_forward(self):
+        for gate in self.gates:
+            gate.set_direction_forward()
+        self.forward = True
         return self
 
-    def get_reverse(self, **kwargs):
-        self = deepcopy(self)
-        return self._reverse(seen=set(), **kwargs)
+    def set_direction_backward(self):
+        for gate in self.gates:
+            gate.set_direction_backward()
+        self.forward = False
+        return self
+
+    def do_backward(self, fn, *args, **kwargs):
+        assert self.forward
+        self.set_direction_backward()
+        out = fn(*args, **kwargs)
+        self.set_direction_forward()
+        return out
 
     """
     Test utilities.
     """
 
-    def apply_to_density_matrix(self, rho):
+    def apply_to_density_matrix(self, rho, checkpoint_at=None):
+        checkpoints = []
+
         for i, (gate, where) in enumerate(self.flatgates_and_where()):
             rho = gate.apply_to_density_matrix(rho)
-        return rho
+
+            if checkpoint_at is not None and checkpoint_at(gate):
+                checkpoints.append(rho)
+
+        if checkpoint_at is not None:
+            return rho, dict(checkpoints=checkpoints)
+        else:
+            return rho

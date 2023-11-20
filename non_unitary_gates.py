@@ -24,8 +24,8 @@ class AddAncilla(SingleQubitGate):
     def apply_reverse(self, psi: State):
         return RestrictMeasurementOutcome.apply(self, psi)
 
-    def _reverse(self, **kwargs):
-        return RestrictMeasurementOutcome(self.positions)
+    # def _reverse(self, **kwargs):
+    #     return RestrictMeasurementOutcome(self.positions)
 
 
 class RestrictMeasurementOutcome(AddAncilla):
@@ -36,8 +36,8 @@ class RestrictMeasurementOutcome(AddAncilla):
     def apply_reverse(self, psi: State):
         return AddAncilla.apply(self, psi)
 
-    def _reverse(self, **kwargs):
-        return AddAncilla(self.positions)
+    # def _reverse(self, **kwargs):
+    #     return AddAncilla(self.positions)
 
     # def apply_to_density_matrix(self, rho: DensityMatrix):
     #    _0, _1 = gate_implementation.split_by_bit_p(len(rho), self.p)
@@ -61,8 +61,8 @@ class AddRandomAncilla(SingleQubitGate):
     def apply_reverse(self, psi: State):
         raise NotImplementedError
 
-    def _reverse(self, **kwargs):
-        return Measurement(self.p)
+    # def _reverse(self, **kwargs):
+    #     return Measurement(self.p)
 
     def apply_to_density_matrix(self, rho: DensityMatrix):
         # rho_out = torch.zeros(
@@ -120,8 +120,8 @@ class Measurement(SingleQubitGate):
         psi_out[[_0, _1][outcome]] += psi
         return psi_out
 
-    def _reverse(self, **kwargs):
-        return AddAncilla(self.positions)
+    # def _reverse(self, **kwargs):
+    #     return AddAncilla(self.positions)
 
     """
     Test utilities.

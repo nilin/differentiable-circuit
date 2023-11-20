@@ -36,10 +36,17 @@ def groundstate(H: Hamiltonian, n: int):
 
 def testcircuit(circuit, target):
     I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
-    rho_t = circuit.apply_to_density_matrix(I)
+    rho_t, checkpoints = circuit.apply_to_density_matrix(
+        I, checkpoint_at=lambda gate: isinstance(gate, Measurement)
+    )
     value = cdot(target, rho_t @ target).real
     # print(f"Circuit value: {value:.5f}")
-    return value
+    return value, checkpoints
+
+
+def retrieve(*values):
+    for value in values:
+        yield value.detach().cpu().numpy()
 
 
 if __name__ == "__main__":
@@ -63,6 +70,7 @@ if __name__ == "__main__":
     H = TFIM(n)
     target = groundstate(H, n)
     rho_target = target[:, None] * target[None, :].conj()
+    rho_target_0 = rho_target
 
     add_random_ancilla = AddRandomAncilla(0)
     restrict = RestrictMeasurementOutcome(0)
@@ -70,45 +78,56 @@ if __name__ == "__main__":
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
 
-    blocks = []
+    targets = []
+    blocks = deque([])
+
+    ublock = UnitaryBlock(H, l=l, use_trotter=False, n=n).set_direction_forward()
 
     for epoch in range(args.epochs):
-        block = UnitaryBlock(H, l=l, use_trotter=False, n=n)
-        reverse_block = block.get_reverse()
-        optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
+        optimizer = optim.Adam(ublock.parameters(), lr=0.01)
 
         # torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho_target, f"{outdir}/rho_t-{epoch}.pt")
 
+        targets.append(rho_target)
+        rho_out = add_random_ancilla.apply_to_density_matrix(rho_target)
+
+        block = Block(unitaryblock=ublock)
+
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            rho_out = add_random_ancilla.apply_to_density_matrix(rho_target)
-            rho_in = reverse_block.apply_to_density_matrix(rho_out)
+            rho_in = ublock.do_backward(ublock.apply_to_density_matrix, rho_out)
             rho_in_restricted = restrict.apply_to_density_matrix(rho_in)
-            value = rho_in_restricted.trace().real
+
+            value1 = rho_in_restricted.trace().real
+            # value2 = torch.abs(cdot(target, ublock.apply(target)) ** 2)
+            value2 = HS(block.apply_to_density_matrix(rho_target_0), rho_target_0).real
+            value = 0.1 * value1 + value2
 
             loss = -value
             loss.backward()
 
             optimizer.step()
 
-            print(value)
+            value1, value2 = retrieve(value1, value2)
+            print(f"{value1:.6f} {value2:.6f}")
 
             with open(f"{outdir}/values.txt", "a") as f:
-                f.write(f"{epoch} {i} {value.detach().cpu().numpy()}\n")
+                f.write(f"{epoch} {i} Ancilla {value1} invariance {value2}\n")
 
         rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
 
-        forward_block = reverse_block.get_reverse(mode="measurement")
-        torch.save(forward_block, f"{outdir}/block_t-{epoch}.pt")
-        torch.save(forward_block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+        torch.save(ublock, f"{outdir}/block_t-{epoch}.pt")
+        torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
-        blocks.append(Block(unitaryblock=forward_block))
+        blocks.appendleft(block)
 
         circuit = CircuitChannel(gates=blocks)
         torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
         torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
-        circuitvalue = testcircuit(circuit, target)
+        circuitvalue, checkpoints = testcircuit(circuit, target)
         emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
+
+        ublock = copy.deepcopy(ublock)
