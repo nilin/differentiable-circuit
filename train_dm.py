@@ -36,12 +36,10 @@ def groundstate(H: Hamiltonian, n: int):
 
 def testcircuit(circuit, target):
     I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
-    rho_t, checkpoints = circuit.apply_to_density_matrix(
-        I, checkpoint_at=lambda gate: isinstance(gate, Measurement)
-    )
+    rho_t = circuit.apply_to_density_matrix(I)
     value = cdot(target, rho_t @ target).real
     # print(f"Circuit value: {value:.5f}")
-    return value, checkpoints
+    return value
 
 
 def retrieve(*values):
@@ -126,7 +124,10 @@ if __name__ == "__main__":
         torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
         torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
-        circuitvalue, checkpoints = testcircuit(circuit, psi_target)
+        circuitvalue = testcircuit(circuit, psi_target)
         emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
+
+        with open(f"{outdir}/circuitvalues.txt", "a") as f:
+            f.write(f"{epoch} {circuitvalue}\n")
 
         ublock = copy.deepcopy(ublock)

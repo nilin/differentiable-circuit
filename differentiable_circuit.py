@@ -62,20 +62,24 @@ class Circuit(torch.nn.Module):
     """
     Test utilities.
     """
+    # def apply_to_density_matrix(self, rho, checkpoint_at=None):
+    #    checkpoints = []
 
-    def apply_to_density_matrix(self, rho, checkpoint_at=None):
-        checkpoints = []
+    #    for i, (gate, where) in enumerate(self.flatgates_and_where()):
+    #        rho = gate.apply_to_density_matrix(rho)
 
+    #        if checkpoint_at is not None and checkpoint_at(gate):
+    #            checkpoints.append(rho)
+
+    #    if checkpoint_at is not None:
+    #        return rho, dict(checkpoints=checkpoints)
+    #    else:
+    #        return rho
+
+    def apply_to_density_matrix(self, rho):
         for i, (gate, where) in enumerate(self.flatgates_and_where()):
             rho = gate.apply_to_density_matrix(rho)
-
-            if checkpoint_at is not None and checkpoint_at(gate):
-                checkpoints.append(rho)
-
-        if checkpoint_at is not None:
-            return rho, dict(checkpoints=checkpoints)
-        else:
-            return rho
+        return rho
 
 
 class UnitaryCircuit(Circuit):

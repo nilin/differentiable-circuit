@@ -53,7 +53,6 @@ if __name__ == "__main__":
     argparser.add_argument("--l", type=int, default=6)
     argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
-    argparser.add_argument("--iterations", type=int, default=10000)
     argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
     args, _ = argparser.parse_known_args()
@@ -87,55 +86,56 @@ if __name__ == "__main__":
         psi_0, psi_1 = measure.apply_both(psi_out, normalize=False)
         return squared_overlap(psi_target, psi_0) + squared_overlap(psi_target, psi_1)
 
-    for i in range(args.iterations):
-        optimizer.zero_grad()
+    for e in range(args.epochs):
+        for i in range(args.iterations_per_epoch):
+            optimizer.zero_grad()
 
-        psi_in = add_ancilla.apply(psi_target)
-        # value1, _ = ublock.optimal_control(psi_in, Obs)
-        value1 = Obs(ublock.apply(psi_in))
+            psi_in = add_ancilla.apply(psi_target)
+            # value1, _ = ublock.optimal_control(psi_in, Obs)
+            value1 = Obs(ublock.apply(psi_in))
 
-        psi_out = psi_target
-        psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)
-        psi_out_1 = add_qubits((0,), (0.0, 1.0), psi_out)
+            psi_out = psi_target
+            psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)
+            psi_out_1 = add_qubits((0,), (0.0, 1.0), psi_out)
 
-        psi_in_0 = ublock.do_backward(ublock.apply, psi_out_0)
-        psi_in_1 = ublock.do_backward(ublock.apply, psi_out_1)
+            psi_in_0 = ublock.do_backward(ublock.apply, psi_out_0)
+            psi_in_1 = ublock.do_backward(ublock.apply, psi_out_1)
 
-        value2 = (measure.probability(psi_in_0, 0) + measure.probability(psi_in_1, 0)) / 2
+            value2 = (measure.probability(psi_in_0, 0) + measure.probability(psi_in_1, 0)) / 2
 
-        value = value1 + value2
-        loss = -value
-        loss.backward()
+            value = value1 + value2
+            loss = -value
+            loss.backward()
 
-        optimizer.step()
+            optimizer.step()
 
-        value1, value2 = retrieve(value1, value2)
-        print(f"{value1:.6f} {value2:.6f}")
+            value1, value2 = retrieve(value1, value2)
+            print(f"{value1:.6f} {value2:.6f}")
 
-        with open(f"{outdir}/values.txt", "a") as f:
-            f.write(f"{i} Ancilla {value1} invariance {value2}\n")
+            with open(f"{outdir}/values.txt", "a") as f:
+                f.write(f"{i} Ancilla {value1} invariance {value2}\n")
 
-        # rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
+            # rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
 
-        # torch.save(ublock, f"{outdir}/block_t-{epoch}.pt")
-        # torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+            # torch.save(ublock, f"{outdir}/block_t-{epoch}.pt")
+            # torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
-        if i % args.iterations_per_epoch == 0:
-            psi_test = HaarState(n, config.gen).pure_state()
-            testvals = []
+            if i % args.iterations_per_epoch == 0:
+                psi_test = HaarState(n, config.gen).pure_state()
+                testvals = []
 
-            for d in range(10):
-                psi_test = block.apply(psi_test, torch.rand(1))
-                testvals.append(squared_overlap(psi_target, psi_test))
-                testvalstring = "\n".join([f"{v:.5f}" for v in testvals])
+                for d in range(10):
+                    psi_test = block.apply(psi_test, torch.rand(1))
+                    testvals.append(squared_overlap(psi_target, psi_test))
+                    testvalstring = "\n".join([f"{v:.5f}" for v in testvals])
 
-            emph(f"Test values: {testvalstring}")
+                emph(f"Test values: {testvalstring}")
 
-            # circuit = Channel(gates=blocks)
-            # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
-            # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
+                # circuit = Channel(gates=blocks)
+                # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
+                # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
-            # circuitvalue, checkpoints = testcircuit(circuit, psi_target)
-            # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
+                # circuitvalue, checkpoints = testcircuit(circuit, psi_target)
+                # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
 
-            # ublock = copy.deepcopy(ublock)
+                # ublock = copy.deepcopy(ublock)
