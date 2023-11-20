@@ -3,7 +3,9 @@ from differentiable_circuit import State, CircuitChannel
 from typing import List
 from torch import nn
 import config
-from dataclasses import dataclass
+from config import randn
+from copy import deepcopy
+from dataclasses import dataclass, KW_ONLY
 import torch
 import torch
 from differentiable_gate import (
@@ -17,15 +19,18 @@ from datatypes import *
 """Define gates as Hamiltonian evolution"""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class HamiltonianTerm(Gate):
-    """Classes inheriting from HamiltonianTerm need to specify H: GateState"""
-
-    strength: float = 1.0
+    def __init__(self, *positions):
+        Gate.__init__(self, positions)
 
     def apply(self, psi: State):
-        gate_state = self.strength * self.H
-        return self.apply_gate_state(gate_state, psi)
+        return self.apply_gate_state(self.H, psi)
+
+    def rescale(self, c: float):
+        self = deepcopy(self)
+        self.H = c * self.H
+        return self
 
 
 @dataclass
@@ -61,13 +66,13 @@ class TrotterSuzuki(CircuitChannel):
         self.Layer2 = Layer2
         self.steps = steps
         if T is None:
-            self.T = nn.Parameter(torch.randn(1))
+            self.T = nn.Parameter(randn())
         else:
             self.T = T
 
-        U_0 = [Exp_i(H, self.T, 1 / (2 * self.steps)) for H in self.Layer2]
-        U_1 = [Exp_i(H, self.T) for H in self.Layer1]
-        U_2 = [Exp_i(H, self.T) for H in self.Layer2]
+        U_0 = [Exp_i(H, self.T, speed=1 / (2 * self.steps)) for H in self.Layer2]
+        U_1 = [Exp_i(H, self.T, speed=1 / self.steps) for H in self.Layer1]
+        U_2 = [Exp_i(H, self.T, speed=1 / self.steps) for H in self.Layer2]
         self.gates = nn.ModuleList(U_0 + (U_1 + U_2) * (self.steps - 1) + U_1 + U_0)
 
 
@@ -80,7 +85,7 @@ class Exp_i(ThetaGate, nn.Module):
         self.speed = speed
 
         if T is None:
-            self.input = nn.Parameter(torch.randn(1))
+            self.input = nn.Parameter(randn())
         else:
             self.input = T
 
@@ -89,14 +94,28 @@ class Exp_i(ThetaGate, nn.Module):
 
     def compile(self):
         if not self.diag:
-            eigs, U = np.linalg.eigh(self.hamiltonian.H)
+            # eigs, U = np.linalg.eigh(self.hamiltonian.H)
+            eigs, U = torch._linalg_eigh(self.hamiltonian.H)
             self.eigs = torchcomplex(eigs)
             self.U = torchcomplex(U)
 
-    def control(self, t):
+    def apply_to_eigs_H(self, fn):
         if self.diag:
-            return torch.exp(-1j * t * self.hamiltonian.strength * self.hamiltonian.H)
+            return fn(self.hamiltonian.H)
         else:
-            D = torch.exp(-1j * t * self.hamiltonian.strength * self.eigs)
-            gate_state = self.U @ (D[:, None] * self.U.T)
-            return gate_state
+            return self.U @ (fn(self.eigs)[:, None] * self.U.T)
+
+    def control(self, t: Scalar):
+        return self.apply_to_eigs_H(lambda eigs: torch.exp(-1j * t.to(device) * eigs))
+
+    # def dgate_state(self) -> GateState:
+    #    if self.diag:
+    #        dU = -1j * self.speed * self.hamiltonian.H * self.scaled_control()
+    #    else:
+    #        D = torch.exp(
+    #            -1j * self.input * self.speed * self.hamiltonian.strength * self.eigs
+    #        )
+    #        gate_state = self.U @ (D[:, None] * self.U.T)
+    #        return gate_state
+
+    #    return dU

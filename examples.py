@@ -1,4 +1,5 @@
 from differentiable_gate import *
+from non_unitary_gates import *
 from typing import List
 from differentiable_circuit import CircuitChannel
 from dataclasses import dataclass
@@ -6,6 +7,7 @@ from datatypes import *
 import torch
 from torch.nn import Parameter
 import config
+from config import randn
 from torch import nn
 import torch
 from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm, TrotterSuzuki
@@ -15,58 +17,36 @@ from datatypes import *
 
 
 def convert(matrix):
-    return torchcomplex(np.array(matrix))
+    return torchcomplex(torch.tensor(matrix).to(torch.complex64)).to(config.device)
 
 
 """Specific gates"""
 
 
-@dataclass
 class X(HamiltonianTerm):
     k = 1
     diag = False
     H = X = convert([[0, 1], [1, 0]])
-    p: int
 
 
-@dataclass
 class Z(HamiltonianTerm):
     k = 1
     diag = True
     H = Z = convert([1, -1])
-    p: int
 
 
-@dataclass
 class ZZ(HamiltonianTerm):
     k = 2
     diag = True
     H = ZZ = convert([1, -1, -1, 1])
-    p: int
-    q: int
 
 
-@dataclass
 class A(HamiltonianTerm):
     k = 2
     diag = False
     X = np.array([[0, 1], [1, 0]])
     Z = np.array([[1, 0], [0, -1]])
     H = XZ = convert(np.kron(X, Z))
-    p: int
-    q: int
-
-
-@dataclass
-class A2(HamiltonianTerm):
-    k = 2
-    diag = False
-    X = np.array([[0, 1], [1, 0]])
-    Z = np.array([[1, 0], [0, -1]])
-    # H = XZ = convert(np.kron(X, Z))
-    H = XX = convert(np.kron(X, X))
-    p: int
-    q: int
 
 
 def bricklayer(n):
@@ -78,11 +58,12 @@ def bricklayer(n):
 def shift_right(H, d):
     H2 = copy.deepcopy(H)
     for h in H2.terms:
-        if h.k == 1:
-            h.p += d
-        if h.k == 2:
-            h.p += d
-            h.q += d
+        h.positions = tuple(p + d for p in h.positions)
+        # if h.k == 1:
+        #    h.p += d
+        # if h.k == 2:
+        #    h.p += d
+        #    h.q += d
     return H2
 
 
@@ -90,7 +71,7 @@ class TFIM(Hamiltonian):
     def __init__(self, n, coupling: float = 1.0):
         self.coupling = coupling
         self.Ising = [ZZ(i, i + 1) for i in bricklayer(n)]
-        self.transverse = [X(i, strength=self.coupling) for i in range(n)]
+        self.transverse = [X(i).rescale(coupling) for i in range(n)]
         self.terms = self.Ising + self.transverse
 
 
@@ -101,6 +82,7 @@ class UnitaryBlock(CircuitChannel):
         l: int = None,
         mixwith: List[int] = None,
         trottersteps: int = 1,
+        use_trotter: bool = True,
         reverse: bool = False,
     ):
         torch.nn.Module.__init__(self)
@@ -112,15 +94,17 @@ class UnitaryBlock(CircuitChannel):
             mixwith = [1] * l
 
         for i, mw in enumerate(mixwith):
-            a = nn.Parameter(torch.randn(1))
-            tau = nn.Parameter(torch.randn(1))
-            zeta = nn.Parameter(torch.randn(1))
+            a = nn.Parameter(randn())
+            tau = nn.Parameter(randn())
+            zeta = nn.Parameter(randn())
 
-            step = [
-                Exp_i(Z(0), a),
-                TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps),
-                Exp_i(A(0, mw), zeta),
-            ]
+            if use_trotter:
+                e_iH = TrotterSuzuki(H_shifted.Ising, H_shifted.transverse, tau, trottersteps)
+            else:
+                pass
+                # e_iH= [Exp_i(H, tau)]
+
+            step = [Exp_i(Z(0), a), e_iH, Exp_i(A(0, mw), zeta)]
             if reverse:
                 gates = gates + step[::-1]
             else:
@@ -146,31 +130,6 @@ class Block(CircuitChannel):
             U = unitaryblock
         M = Measurement(0)
         self.gates = nn.ModuleList([A, U, M])
-
-
-class ShortBlock(CircuitChannel):
-    """In a short block we can apply the Hamiltonian to an n-qubit state
-    instead of n+1 qubits.
-    """
-
-    def __init__(
-        self,
-        H: Hamiltonian,
-        mixwith: int = 1,
-        trottersteps: int = 1,
-    ):
-        a = nn.Parameter(torch.randn(1))
-        tau = nn.Parameter(torch.randn(1))
-        zeta = nn.Parameter(torch.randn(1))
-        self.gates = nn.ModuleList(
-            [
-                TrotterSuzuki(H.Ising, H.transverse, tau, trottersteps),
-                AddAncilla(0),
-                Exp_i(Z(0), a),
-                Exp_i(A(0, mixwith), zeta),
-                Measurement(0),
-            ]
-        )
 
 
 @dataclass

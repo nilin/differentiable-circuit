@@ -27,7 +27,10 @@ class GateImplementation:
 
 def torchcomplex(x):
     real = torch.Tensor(x.real)
-    imag = torch.Tensor(x.imag)
+    if x.is_complex():
+        imag = torch.Tensor(x.imag)
+    else:
+        imag = torch.zeros_like(real)
     return torch.complex(real, imag)
 
 

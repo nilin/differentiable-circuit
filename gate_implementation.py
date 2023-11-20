@@ -1,63 +1,107 @@
 import torch
-from datatypes import GateImplementation
-from datatypes import tcomplex
-import config
+from typing import List, Tuple, Callable
 
-device = config.device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+tcomplex = torch.complex64
 
 
-def bit_p(N, p):
+"""obtain indices"""
+
+
+def split_by_bits_fn(N: int, positions: List[int]):
+    where_all_k_qubits_0, blocksizes = get_where_all_k_qubits_0(N, positions)
+
+    def get_indices(i):
+        shift = dot_with_binary_expansion(blocksizes, i)
+        return where_all_k_qubits_0 + shift
+
+    return get_indices
+
+
+def split_by_bits(N: int, positions: List[int]):
+    k = len(positions)
+    get_indices = split_by_bits_fn(N, positions)
+    for i in range(2**k):
+        yield get_indices(i)
+
+
+"""helper functions for obtaining indices"""
+
+
+def bit_p(N: int, p: int):
     blocksize = N // 2 ** (p + 1)
     arange = torch.arange(N, device=device)
     b = (arange // blocksize) % 2
     return b, blocksize
 
 
-def split_by_bit_p(N, p):
-    b, blocksize = bit_p(N, p)
-    (_0,) = torch.where(b == 0)
-    _1 = _0 + blocksize
-    return _0, _1
+def get_where_all_k_qubits_0(N: int, positions: List[int]):
+    are_all_k_qubits_0 = torch.ones(N, dtype=torch.bool, device=device)
+    blocksizes = []
+    for p in positions:
+        bit, blocksize = bit_p(N, p)
+        are_all_k_qubits_0 = are_all_k_qubits_0 * (bit == 0)
+        blocksizes.append(blocksize)
+
+    (where_all_k_qubits_0,) = torch.where(are_all_k_qubits_0)
+    return where_all_k_qubits_0, blocksizes
 
 
-def split_by_bits_pq(N, p, q):
-    bp, blocksize_p = bit_p(N, p)
-    bq, blocksize_q = bit_p(N, q)
-    (_00,) = torch.where((bp == 0) * (bq == 0))
-    _01 = _00 + blocksize_q
-    _10 = _00 + blocksize_p
-    _11 = _00 + (blocksize_p + blocksize_q)
-    return _00, _01, _10, _11
+def dot_with_binary_expansion(array, i: int):
+    overlap = 0
+    for j, element in enumerate(array[::-1]):
+        overlap += element * ((i >> j) & 1)
+    return overlap
 
 
-class TorchGate(GateImplementation):
-    @staticmethod
-    def split_by_bit_p(N, p):
-        return split_by_bit_p(N, p)
-
-    @staticmethod
-    def apply_gate(gate, gate_state, psi):
-        if gate.k == 1:
-            index_arrays = split_by_bit_p(len(psi), gate.p)
-        elif gate.k == 2:
-            index_arrays = split_by_bits_pq(len(psi), gate.p, gate.q)
-
-        psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
-        if gate.diag:
-            for i, I in enumerate(index_arrays):
-                psi_out[I] += gate_state[i] * psi[I]
-        else:
-            for i, I in enumerate(index_arrays):
-                for j, J in enumerate(index_arrays):
-                    psi_out[I] += gate_state[i, j] * psi[J]
-        del psi
-        return psi_out
+"""apply gates"""
 
 
-def add_qubit(p, beta, psi):
-    _0, _1 = split_by_bit_p(2 * len(psi), p)
-    psi_out = torch.zeros(2 * len(psi), device=device, dtype=tcomplex)
-    psi_out[_0] = beta[0] * psi
-    psi_out[_1] = beta[1] * psi
+def apply_gate(positions: List[int], k_qubit_matrix: torch.Tensor, psi: torch.Tensor):
+    N = len(psi)
+    psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
+
+    for i, I in enumerate(split_by_bits(N, positions)):
+        for j, J in enumerate(split_by_bits(N, positions)):
+            if k_qubit_matrix[i, j] != 0:
+                psi_out[I] += k_qubit_matrix[i, j] * psi[J]
+
     del psi
+    return psi_out
+
+
+def apply_sparse_gate(positions: List[int], k_qubit_sparse_matrix: Tuple, psi: torch.Tensor):
+    N = len(psi)
+    psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
+    matrix_indices, values = k_qubit_sparse_matrix
+    get_indices = split_by_bits_fn(N, positions)
+
+    for (i, j), val in zip(matrix_indices, values):
+        I = get_indices(i)
+        J = get_indices(j)
+        psi_out[I] += val * psi[J]
+
+    del psi
+    return psi_out
+
+
+def apply_gate_diag(positions: List[int], k_qubit_diag: torch.Tensor, psi: torch.Tensor):
+    i = torch.arange(len(k_qubit_diag))
+    indices = torch.stack([i, i], axis=1)
+    sparse = (indices, k_qubit_diag)
+    return apply_sparse_gate(positions, sparse, psi)
+
+
+def apply_on_complement(exclude_positions: Tuple, gate_fn: Callable, psi: torch.Tensor):
+    psi_out = torch.zeros_like(psi)
+    for I in split_by_bits(len(psi), exclude_positions):
+        psi_out[I] = gate_fn(psi[I])
+    return psi
+
+
+def add_qubits(positions, beta, psi):
+    k = len(positions)
+    psi_out = torch.zeros(2 * len(psi), device=device, dtype=tcomplex)
+    for i, I in enumerate(split_by_bits(2**k * len(psi), positions)):
+        psi_out[I] = beta[i] * psi
     return psi_out

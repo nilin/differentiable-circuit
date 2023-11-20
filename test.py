@@ -57,7 +57,7 @@ class TestGradChannel:
 
     @staticmethod
     def reformat(value, grad):
-        return value.cpu().detach(), np.stack([g.detach().numpy() for g in grad])
+        return value.cpu().detach(), np.stack([g.detach().cpu().numpy() for g in grad])
 
 
 class TestGradUnitary(TestGradChannel):

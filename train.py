@@ -1,6 +1,7 @@
 import argparse
 from test import TestGradChannel
 from examples import *
+from non_unitary_gates import *
 from torch import optim
 import os
 from differentiable_circuit import *
@@ -46,6 +47,7 @@ if __name__ == "__main__":
     argparser.add_argument("--n", type=int, default=6)
     argparser.add_argument("--l", type=int, default=6)
     argparser.add_argument("--d", type=int, default=1)
+    argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
@@ -62,8 +64,8 @@ if __name__ == "__main__":
     target = groundstate(H, n)
     rho_target = target[:, None] * target[None, :].conj()
 
-    add_random_ancilla = AddRandomAncilla(p=0)
-    restrict = RestrictMeasurementOutcome(p=0)
+    add_random_ancilla = AddRandomAncilla(0)
+    restrict = RestrictMeasurementOutcome(0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     blocks = []
 
     for epoch in range(args.epochs):
-        block = UnitaryBlock(H, l=l)
+        block = UnitaryBlock(H, l=l, trottersteps=args.trottersteps)
         reverse_block = block.get_reverse()
         optimizer = optim.Adam(reverse_block.parameters(), lr=0.01)
 
@@ -89,7 +91,6 @@ if __name__ == "__main__":
             loss = -value
             loss.backward()
 
-            # breakpoint()
             optimizer.step()
 
             print(value)
@@ -98,14 +99,12 @@ if __name__ == "__main__":
                 f.write(f"{epoch} {i} {value.detach().cpu().numpy()}\n")
 
         rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
-        # emph(f"After {epoch+1} epochs: {value:.5f}")
 
         forward_block = reverse_block.get_reverse(mode="measurement")
         torch.save(forward_block, f"{outdir}/block_t-{epoch}.pt")
         torch.save(forward_block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
         blocks.append(Block(unitaryblock=forward_block))
-        # reverse_block = copy.deepcopy(reverse_block)
 
         circuit = CircuitChannel(gates=blocks)
         torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")

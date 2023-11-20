@@ -1,4 +1,5 @@
-from differentiable_gate import Gate, State, Measurement, ThetaGate
+from differentiable_gate import Gate, State, ThetaGate
+from non_unitary_gates import Measurement
 from typing import Callable, List, Iterable, Optional, Union
 from dataclasses import dataclass
 import torch
