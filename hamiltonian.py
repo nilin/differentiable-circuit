@@ -1,5 +1,5 @@
 from differentiable_gate import GateState, Scalar, Gate, ThetaGate, Op
-from differentiable_circuit import State, CircuitChannel
+from differentiable_channel import State, Channel
 import differentiable_gate
 from typing import List
 from torch import nn
@@ -64,7 +64,7 @@ class Hamiltonian(Op):
         return DenseHamiltonian(H)
 
 
-class TrotterSuzuki(CircuitChannel):
+class TrotterSuzuki(Channel):
     Layer1: List[HamiltonianTerm]
     Layer2: List[HamiltonianTerm]
     T: Scalar

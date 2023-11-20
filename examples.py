@@ -1,7 +1,8 @@
 from differentiable_gate import *
 from non_unitary_gates import *
 from typing import List
-from differentiable_circuit import CircuitChannel
+from differentiable_circuit import Circuit, UnitaryCircuit
+from differentiable_channel import Channel
 from dataclasses import dataclass
 from datatypes import *
 import torch
@@ -75,7 +76,7 @@ class TFIM(Hamiltonian):
         self.terms = self.Ising + self.transverse
 
 
-class UnitaryBlock(CircuitChannel):
+class UnitaryBlock(UnitaryCircuit):
     def __init__(
         self,
         H: Hamiltonian,
@@ -118,7 +119,7 @@ class UnitaryBlock(CircuitChannel):
         self.gates = nn.ModuleList(gates)
 
 
-class Block(CircuitChannel):
+class Block(Channel):
     def __init__(
         self,
         H: Optional[Hamiltonian] = None,

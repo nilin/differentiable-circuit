@@ -1,10 +1,10 @@
 import argparse
-from test import TestGradChannel
+from test_grad import TestGradChannel
 from examples import *
 from non_unitary_gates import *
 from torch import optim
 import os
-from differentiable_circuit import *
+from differentiable_channel import *
 from datatypes import *
 from torch.nn import Parameter, ParameterList
 import torch
@@ -51,9 +51,9 @@ def retrieve(*values):
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
+    argparser.add_argument("--dm", action="store_true")
     argparser.add_argument("--n", type=int, default=6)
     argparser.add_argument("--l", type=int, default=6)
-    argparser.add_argument("--d", type=int, default=1)
     argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
@@ -62,14 +62,13 @@ if __name__ == "__main__":
 
     n = args.n
     l = args.l
-    d = args.d
     outdir = makedir(args.outdir)
 
     emph(f"{n}+1 qubits")
 
     H = TFIM(n)
-    target = groundstate(H, n)
-    rho_target = target[:, None] * target[None, :].conj()
+    psi_target = groundstate(H, n)
+    rho_target = psi_target[:, None] * psi_target[None, :].conj()
     rho_target_0 = rho_target
 
     add_random_ancilla = AddRandomAncilla(0)
@@ -90,20 +89,19 @@ if __name__ == "__main__":
         torch.save(rho_target, f"{outdir}/rho_t-{epoch}.pt")
 
         targets.append(rho_target)
-        rho_out = add_random_ancilla.apply_to_density_matrix(rho_target)
+        rho_out_ = add_random_ancilla.apply_to_density_matrix(rho_target)
 
         block = Block(unitaryblock=ublock)
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            rho_in = ublock.do_backward(ublock.apply_to_density_matrix, rho_out)
-            rho_in_restricted = restrict.apply_to_density_matrix(rho_in)
-
-            value1 = rho_in_restricted.trace().real
-            # value2 = torch.abs(cdot(target, ublock.apply(target)) ** 2)
+            rho_in_ = ublock.do_backward(ublock.apply_to_density_matrix, rho_out_)
+            rho_in = restrict.apply_to_density_matrix(rho_in_)
+            value1 = rho_in.trace().real
             value2 = HS(block.apply_to_density_matrix(rho_target_0), rho_target_0).real
-            value = 0.1 * value1 + value2
+
+            value = value1 + value2
 
             loss = -value
             loss.backward()
@@ -116,18 +114,18 @@ if __name__ == "__main__":
             with open(f"{outdir}/values.txt", "a") as f:
                 f.write(f"{epoch} {i} Ancilla {value1} invariance {value2}\n")
 
-        rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
+        rho_target = (rho_in / rho_in.trace().real).detach()
 
         torch.save(ublock, f"{outdir}/block_t-{epoch}.pt")
         torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
 
         blocks.appendleft(block)
 
-        circuit = CircuitChannel(gates=blocks)
+        circuit = Channel(gates=blocks)
         torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
         torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
-        circuitvalue, checkpoints = testcircuit(circuit, target)
+        circuitvalue, checkpoints = testcircuit(circuit, psi_target)
         emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
 
         ublock = copy.deepcopy(ublock)
