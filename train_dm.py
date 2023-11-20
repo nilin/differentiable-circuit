@@ -52,11 +52,11 @@ def retrieve(*values):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dm", action="store_true")
-    argparser.add_argument("--n", type=int, default=6)
-    argparser.add_argument("--l", type=int, default=6)
+    argparser.add_argument("--n", type=int, default=8)
+    argparser.add_argument("--l", type=int, default=12)
     argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
-    argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
+    argparser.add_argument("--iterations_per_epoch", type=int, default=5000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
     args, _ = argparser.parse_known_args()
 
@@ -75,6 +75,7 @@ if __name__ == "__main__":
     restrict = RestrictMeasurementOutcome(0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
+    print(vars(args))
     torch.save(H, f"{outdir}/H.pt")
 
     targets = []

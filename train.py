@@ -54,7 +54,7 @@ if __name__ == "__main__":
     argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations", type=int, default=10000)
-    argparser.add_argument("--iterations_per_epoch", type=int, default=100)
+    argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
     args, _ = argparser.parse_known_args()
 
