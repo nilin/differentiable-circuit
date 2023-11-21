@@ -67,6 +67,8 @@ def apply_gate(positions: List[int], k_qubit_matrix: torch.Tensor, psi: torch.Te
         for j, J in enumerate(split_by_bits(N, positions)):
             if k_qubit_matrix[i, j] != 0:
                 psi_out[I] += k_qubit_matrix[i, j] * psi[J]
+            del J
+        del I
 
     del psi
     return psi_out
@@ -82,6 +84,8 @@ def apply_sparse_gate(positions: List[int], k_qubit_sparse_matrix: Tuple, psi: t
         I = get_indices(i)
         J = get_indices(j)
         psi_out[I] += val * psi[J]
+        del I
+        del J
 
     del psi
     return psi_out
@@ -95,6 +99,7 @@ def apply_gate_diag(positions: List[int], k_qubit_diag: torch.Tensor, psi: torch
     for i, I in enumerate(split_by_bits(N, positions)):
         if k_qubit_diag[i] != 0:
             psi_out[I] += k_qubit_diag[i] * psi[I]
+        del I
 
     del psi
     return psi_out
@@ -113,6 +118,9 @@ def apply_on_complement(exclude_positions: Tuple, gate_fn: Callable, psi: torch.
     psi_out = torch.zeros_like(psi)
     for I in split_by_bits(len(psi), exclude_positions):
         psi_out[I] = gate_fn(psi[I])
+        del I
+
+    del psi
     return psi_out
 
 
@@ -121,4 +129,7 @@ def add_qubits(positions, beta, psi):
     psi_out = torch.zeros(2 * len(psi), device=device, dtype=tcomplex)
     for i, I in enumerate(split_by_bits(2**k * len(psi), positions)):
         psi_out[I] = beta[i] * psi
+        del I
+
+    del psi
     return psi_out
