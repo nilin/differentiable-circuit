@@ -1,0 +1,9 @@
+{
+  "dm": false,
+  "n": 9,
+  "l": 12,
+  "trottersteps": 1,
+  "epochs": 100,
+  "iterations_per_epoch": 1000,
+  "outdir": "_outputs/run"
+}
