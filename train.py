@@ -107,7 +107,12 @@ if __name__ == "__main__":
             psi_in = ublock.do_backward(ublock.apply, psi_target_inner)
             value1 = probabilitymass(psi_in[: 2**n])
 
-            value2 = squared_overlap(psi_target, block.apply(psi_target))
+            y = add_ancilla.apply(psi_target)
+            y = ublock.apply(y)
+            psi0, psi1, p0, p1 = measure.both_outcomes(y)
+            value2 = p0 * squared_overlap(psi_target, psi0) + p1 * squared_overlap(
+                psi_target, psi1
+            )
 
             # psi_out = psi_target
             # psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)

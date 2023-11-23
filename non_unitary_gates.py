@@ -74,6 +74,13 @@ class Measurement(Single_qubit_gate, Custom_directed_gate):
             u = torch.rand(1, dtype=torch.float, device=psi.device)
         return self.measure(psi, u)[0]
 
+    def both_outcomes(self, psi: State):
+        psi_0, out_0, p_0 = self.measure(psi, 0)
+        psi_1, out_1, p_1 = self.measure(psi, 1)
+        assert out_0 == False
+        assert out_1 == True
+        return psi_0, psi_1, p_0, p_1
+
     """
     Test utilities.
     """
