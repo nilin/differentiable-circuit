@@ -31,14 +31,14 @@ def groundstate(H: Hamiltonian, n: int):
     return states[:, 0]
 
 
-def testcircuit(circuit, target):
-    I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
-    rho_t, checkpoints = circuit.apply_to_density_matrix(
-        I, checkpoint_at=lambda gate: isinstance(gate, Measurement)
-    )
-    value = cdot(target, rho_t @ target).real
-    # print(f"Circuit value: {value:.5f}")
-    return value, checkpoints
+# def testcircuit(circuit, target):
+#    I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
+#    rho_t, checkpoints = circuit.apply_to_density_matrix(
+#        I, checkpoint_at=lambda gate: isinstance(gate, Measurement)
+#    )
+#    value = cdot(target, rho_t @ target).real
+#    # print(f"Circuit value: {value:.5f}")
+#    return value, checkpoints
 
 
 def retrieve(*values):
@@ -66,42 +66,55 @@ if __name__ == "__main__":
     H = TFIM(n)
     psi_target = groundstate(H, n)
 
-    add_ancilla = AddAncilla(0)
-    add_random_ancilla = AddRandomAncilla(0)
+    add_ancilla = Add_0_ancilla(0)
+    random_out_ancilla = Random_out_ancilla(0)
     measure = Measurement(0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
 
     targets = []
-    blocks = deque([])
 
-    ublock = UnitaryBlock(H, l=l, use_trotter=False, n=n).set_direction_forward()
+    H_shifted = H.to_dense(n).set_ignored_positions((0,))
 
-    optimizer = optim.Adam(ublock.parameters(), lr=0.01)
+    # def Obs(psi_out):
+    #    psi_0, psi_1 = measure.apply_both(psi_out, normalize=False)
+    #    return squared_overlap(psi_target, psi_0) + squared_overlap(psi_target, psi_1)
 
-    block = Block(unitaryblock=ublock)
+    circuit = Channel(gates=[])
+    backcircuit = Channel(gates=[])
 
-    def Obs(psi_out):
-        psi_0, psi_1 = measure.apply_both(psi_out, normalize=False)
-        return squared_overlap(psi_target, psi_0) + squared_overlap(psi_target, psi_1)
+    for epoch in range(args.epochs):
+        torch.save(circuit, f"{outdir}/circuit-{epoch}.pt")
+        ublock = UnitaryBlock(H_shifted=H_shifted, l=l).set_direction_forward()
+        block = Block(ublock)
+        backblock = Random_out_ancilla_block(ublock)
+        optimizer = optim.Adam(ublock.parameters(), lr=0.01)
 
-    for e in range(args.epochs):
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            psi_in = add_ancilla.apply(psi_target)
+            # psi_test = HaarState(n, config.gen).pure_state()
+            # psi_target_ = add_ancilla.apply(psi_target)
+
+            # psi_in = add_ancilla.apply(psi_target)
             # value1, _ = ublock.optimal_control(psi_in, Obs)
-            value1 = Obs(ublock.apply(psi_in))
+            # value1 = Obs(ublock.apply(psi_in))
 
-            psi_out = psi_target
-            psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)
-            psi_out_1 = add_qubits((0,), (0.0, 1.0), psi_out)
+            beta = HaarState(2, config.gen).pure_state()
+            psi_target_inner = circuit.do_backward(backcircuit.apply, psi_target)
+            psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner)
+            psi_in = ublock.do_backward(ublock.apply, psi_target_inner)
+            value1 = probabilitymass(psi_in[: 2**n])
 
-            psi_in_0 = ublock.do_backward(ublock.apply, psi_out_0)
-            psi_in_1 = ublock.do_backward(ublock.apply, psi_out_1)
+            value2 = squared_overlap(psi_target, block.apply(psi_target))
 
-            value2 = (measure.probability(psi_in_0, 0) + measure.probability(psi_in_1, 0)) / 2
+            # psi_out = psi_target
+            # psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)
+            # psi_out_1 = add_qubits((0,), (0.0, 1.0), psi_out)
+
+            # psi_in_0 = ublock.do_backward(ublock.apply, psi_out_0)
+            # psi_in_1 = ublock.do_backward(ublock.apply, psi_out_1)
 
             value = value1 + value2
             loss = -value
@@ -115,27 +128,22 @@ if __name__ == "__main__":
             with open(f"{outdir}/values.txt", "a") as f:
                 f.write(f"{i} Ancilla {value1} invariance {value2}\n")
 
-            # rho_target = (rho_in_restricted / rho_in_restricted.trace().real).detach()
+        torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+        circuit.gates.insert(0, block)
+        backcircuit.gates.insert(0, block)
 
-            # torch.save(ublock, f"{outdir}/block_t-{epoch}.pt")
-            # torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+        # testvals = []
 
-            if i % args.iterations_per_epoch == 0:
-                psi_test = HaarState(n, config.gen).pure_state()
-                testvals = []
+        # for d in range(10):
+        #    psi_test = block.apply(psi_test, torch.rand(1))
+        #    testvals.append(squared_overlap(psi_target, psi_test))
+        #    testvalstring = "\n".join([f"{v:.5f}" for v in testvals])
 
-                for d in range(10):
-                    psi_test = block.apply(psi_test, torch.rand(1))
-                    testvals.append(squared_overlap(psi_target, psi_test))
-                    testvalstring = "\n".join([f"{v:.5f}" for v in testvals])
+        # emph(f"Test values: {testvalstring}")
+        # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
+        # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
 
-                emph(f"Test values: {testvalstring}")
+        # circuitvalue, checkpoints = testcircuit(circuit, psi_target)
+        # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
 
-                # circuit = Channel(gates=blocks)
-                # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
-                # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
-
-                # circuitvalue, checkpoints = testcircuit(circuit, psi_target)
-                # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
-
-                # ublock = copy.deepcopy(ublock)
+        # ublock = copy.deepcopy(ublock)

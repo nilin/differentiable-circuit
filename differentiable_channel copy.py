@@ -2,30 +2,36 @@ from differentiable_circuit import *
 
 
 class Channel(Circuit):
-    def apply_and_register(self, psi: State):
+    def apply(self, psi: State, randomness: Iterable[uniform01] = [], register=False):
         outcomes = []
         p_conditional = []
         checkpoints = []
-        randomness = deque(self.make_randomness())
-
+        randomness = deque(randomness)
         for gate, where in self.flatgates_and_where():
             if not isinstance(gate, Measurement):
                 psi = gate.apply(psi)
             else:
-                checkpoints.append(psi)
+                if register:
+                    checkpoints.append(psi)
+
                 u = randomness.popleft()
-                psi, m, p = gate.measure(psi, u=u)
+                psi, m, p = gate.apply(psi, u=u, normalize=True)
                 outcomes.append(m)
                 p_conditional.append(p.cpu())
 
-        return psi, outcomes, p_conditional, checkpoints
+        if register:
+            return psi, outcomes, p_conditional, checkpoints
+        else:
+            return psi
 
     def optimal_control(
         self,
         psi: State,
         Obs: Callable[State, State] = None,
+        outcome_values: List[float] = None,
+        randomness: Iterable[uniform01] = [],
     ):
-        psi_t, o, p, ch = self.apply_and_register(psi)
+        psi_t, o, p, ch = self.apply(psi, randomness, register=True)
 
         E = 0
 
@@ -36,9 +42,15 @@ class Channel(Circuit):
             (Xt,) = torch.autograd.grad(E, psi_t, retain_graph=True)
             Xt = Xt.conj()
 
-        return E, p, self.backprop(psi_t, Xt, o, p, ch)
+        if outcome_values is None:
+            dVal_dp = [0.0] * len(o)
+        else:
+            E += sum([o_i * v_i for o_i, v_i in zip(o, outcome_values)])
+            dVal_dp = outcome_values
 
-    def backprop(self, psi, X, outcomes, p_conditional, checkpoints):
+        return E, p, self.backprop(psi_t, Xt, dVal_dp, o, p, ch)
+
+    def backprop(self, psi, X, dObs_dp, outcomes, p_conditional, checkpoints):
         dE_inputs_rev = []
         inputs_rev = []
 
@@ -57,7 +69,10 @@ class Channel(Circuit):
                 psi = checkpoints.pop()
                 m = outcomes.pop()
                 p = p_conditional.pop()
-                X = gate.unmeasure(X, m) / torch.sqrt(p)
+                X = gate.apply_reverse(X, m) / torch.sqrt(p)
+
+                dvdp = dObs_dp.pop()
+                X += dvdp * 2 * psi.conj()
 
             else:
                 psi = gate.apply_reverse(psi)
@@ -65,13 +80,3 @@ class Channel(Circuit):
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
-
-    def make_randomness(self):
-        nmeasurements = len(
-            [
-                gate
-                for gate, where in self.flatgates_and_where()
-                if isinstance(gate, Measurement)
-            ]
-        )
-        return torch.rand(nmeasurements)

@@ -35,7 +35,7 @@ class Gate(Op):
     k: int
     """
 
-    ignore_positions: Tuple[int] = ()
+    ignored_positions: Tuple[int] = ()
     k: int
     diag: bool
     positions: Tuple[int]
@@ -53,7 +53,7 @@ class Gate(Op):
             # return gate_implementation.apply_gate(self.positions, gate_state, psi)
 
         # return gate(psi)
-        return gate_implementation.apply_on_complement(self.ignore_positions, gate, psi)
+        return gate_implementation.apply_on_complement(self.ignored_positions, gate, psi)
 
     def adjoint(self, gate_state: GateState) -> GateState:
         if self.diag:
@@ -75,6 +75,10 @@ class Gate(Op):
 
     def _reverse(self, **kwargs):
         raise NotImplementedError
+
+    def set_ignored_positions(self, ignored_positions):
+        self.ignored_positions = ignored_positions
+        return self
 
 
 class ThetaGate(Gate):
@@ -141,4 +145,4 @@ class DenseGate(Gate):
         else:
             gate = lambda psi: gate_state.to(tcomplex) @ psi
 
-        return gate_implementation.apply_on_complement(self.ignore_positions, gate, psi)
+        return gate_implementation.apply_on_complement(self.ignored_positions, gate, psi)

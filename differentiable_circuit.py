@@ -17,6 +17,11 @@ class Circuit(torch.nn.Module):
         torch.nn.Module.__init__(self)
         self.gates = nn.ModuleList(gates)
 
+    def apply(self, psi: State):
+        for gate, where in self.flatgates_and_where():
+            psi = gate.apply(psi)
+        return psi
+
     """
     for nested constructions and tracing current position
     """
@@ -83,16 +88,6 @@ class Circuit(torch.nn.Module):
 
 
 class UnitaryCircuit(Circuit):
-
-    """
-    main logic
-    """
-
-    def apply(self, psi: State):
-        for gate, where in self.flatgates_and_where():
-            psi = gate.apply(psi)
-        return psi
-
     def optimal_control(
         self,
         psi: State,

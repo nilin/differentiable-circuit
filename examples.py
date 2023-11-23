@@ -79,23 +79,20 @@ class TFIM(Hamiltonian):
 class UnitaryBlock(UnitaryCircuit):
     def __init__(
         self,
-        H: Hamiltonian,
+        H: Hamiltonian = None,
+        H_shifted: HamiltonianTerm = None,
         l: int = None,
         mixwith: List[int] = None,
-        trottersteps: int = 1,
-        use_trotter: bool = True,
-        n: int = None,
-        reverse: bool = False,
+        trottersteps: int = None,
     ):
         torch.nn.Module.__init__(self)
         self.H = H
         gates = []
 
-        if use_trotter:
+        use_trotter = H is not None and trottersteps is not None
+
+        if H_shifted is None:
             H_shifted = shift_right(H, 1)
-        else:
-            H_shifted = H.to_dense(n)
-            H_shifted.ignore_positions = (0,)
 
         if mixwith is None:
             mixwith = [1] * l
@@ -110,11 +107,7 @@ class UnitaryBlock(UnitaryCircuit):
             else:
                 e_iH = Exp_i(H_shifted, tau)
 
-            step = [Exp_i(Z(0), a), e_iH, Exp_i(A(0, mw), zeta)]
-            if reverse:
-                gates = gates + step[::-1]
-            else:
-                gates = gates + step
+            gates = gates + [Exp_i(Z(0), a), e_iH, Exp_i(A(0, mw), zeta)]
 
         self.gates = nn.ModuleList(gates)
 
@@ -122,20 +115,23 @@ class UnitaryBlock(UnitaryCircuit):
 class Block(Channel):
     def __init__(
         self,
-        H: Optional[Hamiltonian] = None,
-        l: Optional[int] = None,
-        mixwith: Optional[List[int]] = None,
-        trottersteps: Optional[int] = 1,
-        unitaryblock: Optional[UnitaryBlock] = None,
+        U: UnitaryBlock,
     ):
         nn.Module.__init__(self)
-        A = AddAncilla(0)
-        if unitaryblock is None:
-            U = UnitaryBlock(H, l, mixwith, trottersteps)
-        else:
-            U = unitaryblock
+        A = Add_0_ancilla(0)
         M = Measurement(0)
         self.gates = nn.ModuleList([A, U, M])
+
+
+class Random_out_ancilla_block(Channel):
+    def __init__(
+        self,
+        U: UnitaryBlock,
+    ):
+        nn.Module.__init__(self)
+        A = Add_0_ancilla(0)
+        R = Random_out_ancilla(0)
+        self.gates = nn.ModuleList([A, U, R])
 
 
 @dataclass
