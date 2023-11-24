@@ -31,14 +31,17 @@ def groundstate(H: Hamiltonian, n: int):
     return states[:, 0]
 
 
-# def testcircuit(circuit, target):
-#    I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
-#    rho_t, checkpoints = circuit.apply_to_density_matrix(
-#        I, checkpoint_at=lambda gate: isinstance(gate, Measurement)
-#    )
-#    value = cdot(target, rho_t @ target).real
-#    # print(f"Circuit value: {value:.5f}")
-#    return value, checkpoints
+def testcircuit(circuit, target, nsamples=10, repeats=20):
+    haarstate = HaarState(n, config.gen)
+    values = []
+    print(f"evaluation")
+    for i in range(nsamples):
+        psi_in = haarstate.pure_state().detach()
+        for _ in range(repeats):
+            psi_out = circuit.apply(psi_in)
+        value = squared_overlap(target, psi_out)
+        values.append(value.detach().cpu().numpy())
+    print(f"evaluation value {np.mean(np.array(values))}")
 
 
 def retrieve(*values):
@@ -94,61 +97,35 @@ if __name__ == "__main__":
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            # psi_test = HaarState(n, config.gen).pure_state()
-            # psi_target_ = add_ancilla.apply(psi_target)
-
-            # psi_in = add_ancilla.apply(psi_target)
-            # value1, _ = ublock.optimal_control(psi_in, Obs)
-            # value1 = Obs(ublock.apply(psi_in))
-
             beta = HaarState(2, config.gen).pure_state()
-            psi_target_inner = circuit.do_backward(backcircuit.apply, psi_target)
-            psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner)
+            psi_target_inner = backcircuit.do_backward(backcircuit.apply, psi_target.detach())
+            psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner).detach()
             psi_in = ublock.do_backward(ublock.apply, psi_target_inner)
             value1 = probabilitymass(psi_in[: 2**n])
 
             y = add_ancilla.apply(psi_target)
             y = ublock.apply(y)
             psi0, psi1, p0, p1 = measure.both_outcomes(y)
+
             value2 = p0 * squared_overlap(psi_target, psi0) + p1 * squared_overlap(
                 psi_target, psi1
             )
+            # value1 = value2
 
-            # psi_out = psi_target
-            # psi_out_0 = add_qubits((0,), (1.0, 0.0), psi_out)
-            # psi_out_1 = add_qubits((0,), (0.0, 1.0), psi_out)
-
-            # psi_in_0 = ublock.do_backward(ublock.apply, psi_out_0)
-            # psi_in_1 = ublock.do_backward(ublock.apply, psi_out_1)
-
-            value = value1 + value2
+            value = value1 + 10 * value2
             loss = -value
             loss.backward()
 
             optimizer.step()
 
             value1, value2 = retrieve(value1, value2)
-            print(f"{value1:.6f} {value2:.6f}")
+            print(f"{i} {value1:.6f} {value2:.6f}")
 
             with open(f"{outdir}/values.txt", "a") as f:
                 f.write(f"{i} Ancilla {value1} invariance {value2}\n")
 
         torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
         circuit.gates.insert(0, block)
-        backcircuit.gates.insert(0, block)
+        backcircuit.gates.insert(0, backblock)
 
-        # testvals = []
-
-        # for d in range(10):
-        #    psi_test = block.apply(psi_test, torch.rand(1))
-        #    testvals.append(squared_overlap(psi_target, psi_test))
-        #    testvalstring = "\n".join([f"{v:.5f}" for v in testvals])
-
-        # emph(f"Test values: {testvalstring}")
-        # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
-        # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
-
-        # circuitvalue, checkpoints = testcircuit(circuit, psi_target)
-        # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
-
-        # ublock = copy.deepcopy(ublock)
+        testcircuit(circuit, psi_target)

@@ -28,7 +28,10 @@ class Circuit(torch.nn.Module):
 
     def flatgates_and_where(self) -> List[Tuple[Gate, Any]]:
         gates_and_where = []
-        for component in self.gates:
+
+        gates = self.gates if self.forward else self.gates[::-1]
+
+        for component in gates:
             if isinstance(component, Circuit):
                 gates_and_where += [
                     (gate, (component,) + w) for gate, w in component.flatgates_and_where()
@@ -36,10 +39,7 @@ class Circuit(torch.nn.Module):
             else:
                 gates_and_where.append((component, (component,)))
 
-        if self.forward:
-            return gates_and_where
-        else:
-            return gates_and_where[::-1]
+        return gates_and_where
 
     """
     for applying circuit in reverse

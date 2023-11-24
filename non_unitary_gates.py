@@ -41,7 +41,9 @@ class Add_0_ancilla(Single_qubit_gate, Custom_directed_gate):
 
     def apply_backward(self, psi: State):
         _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
-        return psi[_0]
+        psi_out = psi[_0]
+        psi_out /= torch.sqrt(probabilitymass(psi_out))
+        return psi_out
 
 
 class Measurement(Single_qubit_gate, Custom_directed_gate):
