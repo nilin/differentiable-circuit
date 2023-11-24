@@ -1,3 +1,4 @@
+from datatypes import DensityMatrix
 from differentiable_gate import *
 import torch.nn as nn
 
@@ -29,21 +30,6 @@ class Custom_directed_gate(Gate):
     def set_direction_backward(self):
         self.forward = False
         return self
-
-
-class Add_0_ancilla(Single_qubit_gate, Custom_directed_gate):
-    def apply_forward(self, psi: State):
-        N = 2 * len(psi)
-        psi_out = torch.zeros((N,) + psi.shape[1:], dtype=psi.dtype, device=psi.device)
-        _0 = next(gate_implementation.split_by_bits(N, self.positions))
-        psi_out[_0] += psi
-        return psi_out
-
-    def apply_backward(self, psi: State):
-        _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
-        psi_out = psi[_0]
-        psi_out /= torch.sqrt(probabilitymass(psi_out))
-        return psi_out
 
 
 class Measurement(Single_qubit_gate, Custom_directed_gate):
@@ -94,6 +80,40 @@ class Measurement(Single_qubit_gate, Custom_directed_gate):
         _0, _1 = gate_implementation.split_by_bits(len(rho), self.positions)
         out = rho[_0][:, _0] + rho[_1][:, _1]
         return out
+
+
+class Add_0_ancilla(Single_qubit_gate, Custom_directed_gate):
+    def apply_forward(self, psi: State):
+        N = 2 * len(psi)
+        psi_out = torch.zeros((N,) + psi.shape[1:], dtype=psi.dtype, device=psi.device)
+        _0 = next(gate_implementation.split_by_bits(N, self.positions))
+        psi_out[_0] += psi
+        return psi_out
+
+    def apply_backward(self, psi: State):
+        _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
+        psi_out = psi[_0]
+        # psi_out /= torch.sqrt(probabilitymass(psi_out))
+        return psi_out
+
+
+class Restrict_measurement_outcome(Single_qubit_gate, Custom_directed_gate):
+    def apply_forward(self, psi: State):
+        _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
+        return psi[_0]
+
+
+class Add_random_ancilla(Single_qubit_gate, Custom_directed_gate):
+    def apply_forward(self, psi: State):
+        beta = torch.randn(2, dtype=tcomplex, device=psi.device)
+        beta /= torch.linalg.norm(beta)
+        return gate_implementation.add_qubits(self.positions, beta, psi)
+
+    def apply_to_density_matrix(self, rho: DensityMatrix):
+        zero = torch.zeros_like(rho)
+        r0 = torch.cat((rho, zero), dim=1) / 2
+        r1 = torch.cat((zero, rho), dim=1) / 2
+        return torch.cat((r0, r1), dim=0)
 
 
 class Random_out_ancilla(Single_qubit_gate, Custom_directed_gate):

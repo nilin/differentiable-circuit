@@ -34,13 +34,16 @@ def groundstate(H: Hamiltonian, n: int):
     return states[:, 0]
 
 
-def testcircuit(circuit, target):
-    I = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
-    I = I.detach()
-    rho_t = circuit.apply_to_density_matrix(I)
-    value = cdot(target, rho_t @ target).real
-    # print(f"Circuit value: {value:.5f}")
-    return value
+def testcircuit(circuit: Circuit, target: State, checkpoints=[1, 5, 10, 25]):
+    print("\nEvaluating")
+    rho = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
+    for i in range(checkpoints[-1]):
+        rho = circuit.apply_to_density_matrix(rho)
+        value = cdot(target, rho @ target).real
+        if i + 1 in checkpoints:
+            print(f"{i+1} repeats: {value.detach().cpu().numpy():.6f}")
+            yield i + 1, value.detach().cpu().numpy()
+    print("Evaluation done.\n")
 
 
 def retrieve(*values):
@@ -53,7 +56,6 @@ if __name__ == "__main__":
     argparser.add_argument("--dm", action="store_true")
     argparser.add_argument("--n", type=int, default=8)
     argparser.add_argument("--l", type=int, default=12)
-    argparser.add_argument("--trottersteps", type=int, default=1)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations_per_epoch", type=int, default=5000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
@@ -69,22 +71,24 @@ if __name__ == "__main__":
     emph(f"{n}+1 qubits")
 
     H = TFIM(n)
+
     psi_target = groundstate(H, n)
     rho_target = psi_target[:, None] * psi_target[None, :].conj()
     rho_target_0 = rho_target
 
-    add_random_ancilla = AddRandomAncilla(0)
-    restrict = RestrictMeasurementOutcome(0)
+    add_random_ancilla = Add_random_ancilla(0)
+    restrict = Restrict_measurement_outcome(0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     print(vars(args))
     torch.save(H, f"{outdir}/H.pt")
     torch.save(psi_target, f"{outdir}/psi_target.pt")
 
-    targets = []
     blocks = deque([])
 
-    ublock = UnitaryBlock(H, l=l, use_trotter=False, n=n).set_direction_forward()
+    H_shifted = H.to_dense(n).set_ignored_positions((0,))
+
+    circuit = Non_unitary_circuit(gates=[])
 
     if args.reload != "":
         prev_args = torch.load(args.compare_args)
@@ -103,15 +107,12 @@ if __name__ == "__main__":
         start_epoch = 0
 
     for epoch in range(start_epoch, args.epochs):
+        ublock = UnitaryBlock(H_shifted=H_shifted, l=l).set_direction_forward()
         optimizer = optim.Adam(ublock.parameters(), lr=0.01)
+        block = Block(ublock)
 
-        # torch.save(optimizer.state_dict(), f"{outdir}/optimizer_{epoch}.pt")
         torch.save(rho_target, f"{outdir}/rho_t-{epoch}.pt")
-
-        targets.append(rho_target)
         rho_out_ = add_random_ancilla.apply_to_density_matrix(rho_target)
-
-        block = Block(unitaryblock=ublock)
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
@@ -135,22 +136,17 @@ if __name__ == "__main__":
                 f.write(f"{epoch} {i} Ancilla {value1} invariance {value2}\n")
 
         rho_target = (rho_in / rho_in.trace().real).detach()
-
-        torch.save(block, f"{outdir}/block_t-{epoch}.pt")
         torch.save(block.state_dict(), f"{outdir}/params_t-{epoch}.pt")
+        torch.save(block, f"{outdir}/block_t-{epoch}.pt")
 
         #################################################################################
 
-        # blocks.appendleft(block)
+        circuit.gates.insert(0, block)
+        torch.save(circuit, f"{outdir}/circuit-{epoch+1}.pt")
 
-        # circuit = Channel(gates=blocks)
-        # torch.save(circuit, f"{outdir}/circuit_{epoch+1}.pt")
-        # torch.save(circuit.state_dict(), f"{outdir}/circuit_params_{epoch}.pt")
-
-        # circuitvalue = testcircuit(circuit, psi_target)
-        # emph(f"After {epoch+1} epochs: circuit value {circuitvalue:.5f}")
-
-        # with open(f"{outdir}/circuitvalues.txt", "a") as f:
-        #    f.write(f"{epoch} {circuitvalue}\n")
-
-        # ublock = copy.deepcopy(ublock)
+        with torch.no_grad():
+            evaluation_msg = " ".join(
+                [f"{i} repeats {val:.6f}" for i, val in testcircuit(circuit, psi_target)]
+            )
+            with open(f"{outdir}/evaluation.txt", "a") as f:
+                f.write(f"{evaluation_msg}\n")

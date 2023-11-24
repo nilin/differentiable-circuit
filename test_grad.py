@@ -2,7 +2,7 @@ import config
 import numpy as np
 import torch
 import argparse
-from differentiable_channel import cdot, squared_overlap, Channel
+from differentiable_channel import cdot, squared_overlap, Non_unitary_circuit
 from differentiable_gate import *
 from examples import Block, TFIM, HaarState, ZeroState, UnitaryBlock
 import examples
@@ -10,13 +10,13 @@ from torch.nn import Parameter, ParameterList
 from datatypes import *
 
 
-class Circuit(Channel):
+class Circuit(Non_unitary_circuit):
     def __init__(self, l, d, H):
         nn.Module.__init__(self)
         self.gates = nn.ModuleList([Block(H, l=l) for _ in range(d)])
 
 
-class UnitaryCircuit(Channel):
+class UnitaryCircuit(Non_unitary_circuit):
     def __init__(self, l, d, H):
         nn.Module.__init__(self)
         self.gates = nn.ModuleList([UnitaryBlock(H, l=l) for _ in range(d)])

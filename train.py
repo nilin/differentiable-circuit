@@ -53,8 +53,7 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dm", action="store_true")
     argparser.add_argument("--n", type=int, default=6)
-    argparser.add_argument("--l", type=int, default=6)
-    argparser.add_argument("--trottersteps", type=int, default=1)
+    argparser.add_argument("--l", type=int, default=20)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
@@ -84,8 +83,8 @@ if __name__ == "__main__":
     #    psi_0, psi_1 = measure.apply_both(psi_out, normalize=False)
     #    return squared_overlap(psi_target, psi_0) + squared_overlap(psi_target, psi_1)
 
-    circuit = Channel(gates=[])
-    backcircuit = Channel(gates=[])
+    circuit = Non_unitary_circuit(gates=[])
+    backcircuit = Non_unitary_circuit(gates=[])
 
     for epoch in range(args.epochs):
         torch.save(circuit, f"{outdir}/circuit-{epoch}.pt")
@@ -97,9 +96,11 @@ if __name__ == "__main__":
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            beta = HaarState(2, config.gen).pure_state()
-            psi_target_inner = backcircuit.do_backward(backcircuit.apply, psi_target.detach())
-            psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner).detach()
+            with torch.no_grad():
+                beta = HaarState(2, config.gen).pure_state()
+                psi_target_inner = backcircuit.do_backward(backcircuit.apply, psi_target)
+                psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner)
+
             psi_in = ublock.do_backward(ublock.apply, psi_target_inner)
             value1 = probabilitymass(psi_in[: 2**n])
 

@@ -2,7 +2,7 @@ from differentiable_gate import *
 from non_unitary_gates import *
 from typing import List
 from differentiable_circuit import Circuit, UnitaryCircuit
-from differentiable_channel import Channel
+from differentiable_channel import Non_unitary_circuit
 from dataclasses import dataclass
 from datatypes import *
 import torch
@@ -112,7 +112,7 @@ class UnitaryBlock(UnitaryCircuit):
         self.gates = nn.ModuleList(gates)
 
 
-class Block(Channel):
+class Block(Non_unitary_circuit):
     def __init__(
         self,
         U: UnitaryBlock,
@@ -123,7 +123,7 @@ class Block(Channel):
         self.gates = nn.ModuleList([A, U, M])
 
 
-class Random_out_ancilla_block(Channel):
+class Random_out_ancilla_block(Non_unitary_circuit):
     def __init__(
         self,
         U: UnitaryBlock,

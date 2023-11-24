@@ -1,7 +1,7 @@
 from differentiable_circuit import *
 
 
-class Channel(Circuit):
+class Non_unitary_circuit(Circuit):
     def apply_and_register(self, psi: State):
         outcomes = []
         p_conditional = []

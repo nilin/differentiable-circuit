@@ -17,9 +17,11 @@ class Circuit(torch.nn.Module):
         torch.nn.Module.__init__(self)
         self.gates = nn.ModuleList(gates)
 
-    def apply(self, psi: State):
+    def apply(self, psi: State, detach=False):
         for gate, where in self.flatgates_and_where():
             psi = gate.apply(psi)
+            if detach:
+                psi = psi.detach()
         return psi
 
     """
@@ -81,9 +83,11 @@ class Circuit(torch.nn.Module):
     #    else:
     #        return rho
 
-    def apply_to_density_matrix(self, rho):
+    def apply_to_density_matrix(self, rho, detach=False):
         for i, (gate, where) in enumerate(self.flatgates_and_where()):
             rho = gate.apply_to_density_matrix(rho)
+            if detach:
+                rho = rho.detach()
         return rho
 
 
