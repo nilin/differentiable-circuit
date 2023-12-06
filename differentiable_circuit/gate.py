@@ -92,7 +92,7 @@ class ThetaGate(Gate):
         self.speed = 1.0
 
     def apply(self, psi: State, **kwargs):
-        gate_state = self.scaled_control(self.input)
+        gate_state=self.control(self.speed * self.input)
         return self.apply_gate_state(gate_state, psi, **kwargs)
 
     def dgate_state(self) -> GateState:
@@ -103,8 +103,7 @@ class ThetaGate(Gate):
         raise NotImplementedError
 
     def apply_reverse(self, psi: State):
-        gate_state = self.scaled_control(self.input)
-        gate_state = self.adjoint(gate_state)
+        gate_state=self.control(-self.speed * self.input)
         return self.apply_gate_state(gate_state, psi)
 
     def control(self, theta: Scalar) -> GateState:
@@ -116,9 +115,6 @@ class ThetaGate(Gate):
         (X rotation, etc.).
         """
         raise NotImplementedError
-
-    def scaled_control(self, theta: Scalar) -> GateState:
-        return self.control(self.speed * theta)
 
     def set_direction_forward(self):
         self.speed = abs(self.speed)
