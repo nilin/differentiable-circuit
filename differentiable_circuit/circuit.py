@@ -68,11 +68,9 @@ class Circuit(torch.nn.Module):
     Test utilities.
     """
 
-    def apply_to_density_matrix(self, rho, detach=False):
+    def apply_to_density_matrix(self, rho):
         for i, (gate, where) in enumerate(self.flatgates_and_where()):
             rho = gate.apply_to_density_matrix(rho)
-            if detach:
-                rho = rho.detach()
         return rho
 
 

@@ -49,8 +49,8 @@ def testcircuit(circuit, target, checkpoints=[1, 5, 10, 25, 50, 75, 100]):
 
 def evaluation(circuit, psi_target):
     print("\nevaluation")
-    for s in range(5):
-        print(f"sample {s+1}")
+    for s in range(3):
+        print(f"\nsample {s+1}")
         for i, val in testcircuit(circuit, psi_target):
             print(f"{i} repeats {val:.6f}")
     print("evaluation done\n")
@@ -61,12 +61,15 @@ def retrieve(*values):
         yield value.detach().cpu().numpy()
 
 
-class RewindCircuit(Circuit):
-    def apply(self, psi, betas):
+class Rewinder(Circuit):
+    def apply(self,psi):
+        raise ValueError("Rewinder does not support forward apply")
+
+    def rewind(self, psi, betas):
         N = len(psi)
-        for forwardgate in self.gates:
+        for gate in self.gates[::-1]:
             psi_ = gate_implementation.add_qubits((0,), betas.pop(0), psi)
-            psi_ = forwardgate.do_backward(forwardgate.apply, psi_)
+            psi_ = gate.do_backward(gate.apply, psi_)
             psi = psi[:N]
         if betas:
             return gate_implementation.add_qubits((0,), betas.pop(0), psi)
@@ -102,7 +105,7 @@ if __name__ == "__main__":
     H_shifted = H.to_dense(n).set_ignored_positions((0,))
 
     circuit = Non_unitary_circuit()
-    rewind = RewindCircuit()
+    rewinder = Rewinder()
 
     def Obs1_and_grad(psi):
         E = probabilitymass(psi[: 2**n])
@@ -134,7 +137,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
 
             betas = [[(1, 0), (0, 1)][np.random.choice(2)] for _ in range(epoch + 1)]
-            psi_target_ = rewind.apply(psi_target, betas)
+            psi_target_ = rewinder.rewind(psi_target, betas)
 
             if args.customgrad:
                 psi_0, value1, _ = ublock.do_backward(
@@ -170,4 +173,4 @@ if __name__ == "__main__":
         circuit.gates.insert(0, Block(ublock))
         evaluation(circuit, psi_target)
 
-        rewind.gates.append(ublock)
+        rewinder.gates.insert(0,ublock)
