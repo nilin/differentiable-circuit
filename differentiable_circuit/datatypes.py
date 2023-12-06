@@ -1,6 +1,6 @@
-from config import *
 import torch
 from typing import Tuple, Callable, Any
+from .config import *
 
 """Large tensor"""
 State = torch.Tensor

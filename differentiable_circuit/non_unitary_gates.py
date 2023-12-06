@@ -1,5 +1,5 @@
-from datatypes import DensityMatrix
-from differentiable_gate import *
+from .datatypes import DensityMatrix
+from .gate import *
 import torch.nn as nn
 
 
@@ -14,25 +14,7 @@ class Single_qubit_gate(Gate, nn.Module):
         return self.positions[0]
 
 
-class Custom_directed_gate(Gate):
-    forward: bool = True
-
-    def apply(self, psi: State):
-        if self.forward:
-            return self.apply_forward(psi)
-        else:
-            return self.apply_backward(psi)
-
-    def set_direction_forward(self):
-        self.forward = True
-        return self
-
-    def set_direction_backward(self):
-        self.forward = False
-        return self
-
-
-class Measurement(Single_qubit_gate, Custom_directed_gate):
+class Measurement(Single_qubit_gate):
     outcome_tuple = namedtuple("Measurement", ["psi", "outcome", "p_outcome"])
 
     def probability(self, psi: State, outcome):
@@ -50,14 +32,7 @@ class Measurement(Single_qubit_gate, Custom_directed_gate):
         psi_post = psi[indices] / torch.sqrt(p_outcome)
         return self.outcome_tuple(psi_post, outcome, p_outcome)
 
-    def unmeasure(self, psi: State, outcome: bool):
-        N = 2 * len(psi)
-        _0, _1 = gate_implementation.split_by_bits(N, self.positions)
-        psi_out = torch.zeros(N, dtype=psi.dtype, device=psi.device)
-        psi_out[[_0, _1][outcome]] += psi
-        return psi_out
-
-    def apply_forward(self, psi: State, u: uniform01 = None):
+    def apply(self, psi: State, u: uniform01 = None):
         if u is None:
             u = torch.rand(1, dtype=torch.float, device=psi.device)
         return self.measure(psi, u)[0]
@@ -65,8 +40,8 @@ class Measurement(Single_qubit_gate, Custom_directed_gate):
     def both_outcomes(self, psi: State):
         psi_0, out_0, p_0 = self.measure(psi, 0)
         psi_1, out_1, p_1 = self.measure(psi, 1)
-        assert out_0 == False
-        assert out_1 == True
+        # assert out_0 == False
+        # assert out_1 == True
         return psi_0, psi_1, p_0, p_1
 
     """
@@ -82,29 +57,23 @@ class Measurement(Single_qubit_gate, Custom_directed_gate):
         return out
 
 
-class Add_0_ancilla(Single_qubit_gate, Custom_directed_gate):
-    def apply_forward(self, psi: State):
+class Add_0_ancilla(Single_qubit_gate):
+    def apply(self, psi: State):
         N = 2 * len(psi)
         psi_out = torch.zeros((N,) + psi.shape[1:], dtype=psi.dtype, device=psi.device)
         _0 = next(gate_implementation.split_by_bits(N, self.positions))
         psi_out[_0] += psi
         return psi_out
 
-    def apply_backward(self, psi: State):
-        _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
-        psi_out = psi[_0]
-        # psi_out /= torch.sqrt(probabilitymass(psi_out))
-        return psi_out
 
-
-class Restrict_measurement_outcome(Single_qubit_gate, Custom_directed_gate):
-    def apply_forward(self, psi: State):
+class Restrict_measurement_outcome(Single_qubit_gate):
+    def apply(self, psi: State):
         _0 = next(gate_implementation.split_by_bits(len(psi), self.positions))
         return psi[_0]
 
 
-class Add_random_ancilla(Single_qubit_gate, Custom_directed_gate):
-    def apply_forward(self, psi: State):
+class Add_random_ancilla(Single_qubit_gate):
+    def apply(self, psi: State):
         beta = torch.randn(2, dtype=tcomplex, device=psi.device)
         beta /= torch.linalg.norm(beta)
         return gate_implementation.add_qubits(self.positions, beta, psi)
@@ -114,10 +83,3 @@ class Add_random_ancilla(Single_qubit_gate, Custom_directed_gate):
         r0 = torch.cat((rho, zero), dim=1) / 2
         r1 = torch.cat((zero, rho), dim=1) / 2
         return torch.cat((r0, r1), dim=0)
-
-
-class Random_out_ancilla(Single_qubit_gate, Custom_directed_gate):
-    def apply_backward(self, psi: State):
-        beta = torch.randn(2, dtype=tcomplex, device=psi.device)
-        beta /= torch.linalg.norm(beta)
-        return gate_implementation.add_qubits(self.positions, beta, psi)

@@ -1,20 +1,20 @@
-from differentiable_gate import Gate, State, ThetaGate
-from non_unitary_gates import Measurement
 from typing import Callable, List, Iterable, Optional, Union
-from dataclasses import dataclass
 import torch
-from copy import deepcopy
 from torch import nn
 from collections import deque
-from datatypes import *
+from .datatypes import *
+from .gate import Gate, State, ThetaGate
+from .non_unitary_gates import Measurement
 
 
 class Circuit(torch.nn.Module):
     direction_forward = True
     gates: nn.ModuleList
 
-    def __init__(self, gates: List[Gate]):
+    def __init__(self, gates: List[Gate] = None):
         torch.nn.Module.__init__(self)
+        if gates is None:
+            gates = []
         self.gates = nn.ModuleList(gates)
 
     def apply(self, psi: State):
@@ -77,6 +77,10 @@ class Circuit(torch.nn.Module):
 
 
 class UnitaryCircuit(Circuit, torch.autograd.Function):
+    def __init__(self, gates: List[Gate] = None):
+        torch.autograd.Function.__init__(self)
+        Circuit.__init__(self, gates)
+
     def optimal_control(
         self,
         psi: State,
@@ -94,7 +98,7 @@ class UnitaryCircuit(Circuit, torch.autograd.Function):
             E = squared_overlap(target, psi_t)
             Xt = cdot(target, psi_t) * target
 
-        return E, self.backprop(psi_t, Xt)
+        return psi_t, E, self.backprop(psi_t, Xt)
 
     def backprop(self, psi, X):
         dE_inputs_rev = []
@@ -119,6 +123,7 @@ class UnitaryCircuit(Circuit, torch.autograd.Function):
         return X
 
     def forward(self, psi: State):
+        psi = psi.clone()
         for gate, where in self.flatgates_and_where():
             psi = gate.apply(psi)
         return psi
@@ -128,11 +133,13 @@ class UnitaryCircuit(Circuit, torch.autograd.Function):
 
     @staticmethod
     def setup_context(ctx, inputs, outputs):
+        breakpoint()
         ctx.save_for_backward(outputs)
 
     def backward(self, ctx, grad_output):
         psi = ctx.saved_tensors[0]
         X = grad_output.conj()
+        breakpoint()
         return self.backprop(psi, X)
 
 
@@ -155,6 +162,9 @@ class SquaredOverlap:
 
 
 class Non_unitary_circuit(Circuit):
+    def apply(self, psi: State):
+        return self.apply_and_register(psi)[0]
+
     def apply_and_register(self, psi: State):
         outcomes = []
         p_conditional = []

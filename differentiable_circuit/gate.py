@@ -1,17 +1,17 @@
-import config
+from . import config
 from typing import Optional
 from dataclasses import dataclass, KW_ONLY
 import torch
-import gate_implementation
+from . import gate_implementation
 from torch.autograd.functional import jacobian as torch_jacobian
-from datatypes import *
+from .datatypes import *
 from collections import namedtuple
 from torch import nn
 import warnings
 from functools import partial
 
 
-from datatypes import GateState, State, uniform01
+from .datatypes import GateState, State, uniform01
 
 
 class Op:

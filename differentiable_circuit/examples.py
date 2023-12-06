@@ -1,19 +1,19 @@
-from differentiable_gate import *
-from non_unitary_gates import *
+from .gate import *
+from .non_unitary_gates import *
 from typing import List
-from differentiable_circuit import Circuit, UnitaryCircuit, Non_unitary_circuit
+from .circuit import Circuit, UnitaryCircuit, Non_unitary_circuit
 from dataclasses import dataclass
-from datatypes import *
+from .datatypes import *
 import torch
 from torch.nn import Parameter
-import config
-from config import randn
+from . import config
+from .config import randn
 from torch import nn
 import torch
-from hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm, TrotterSuzuki
+from .hamiltonian import Exp_i, Hamiltonian, HamiltonianTerm, TrotterSuzuki
 import numpy as np
 import copy
-from datatypes import *
+from .datatypes import *
 
 
 def convert(matrix):

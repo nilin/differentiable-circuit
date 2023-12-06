@@ -1,21 +1,20 @@
-from differentiable_gate import GateState, Scalar, Gate, ThetaGate, Op
-from differentiable_circuit import Non_unitary_circuit
-import differentiable_gate
+from .gate import GateState, Scalar, Gate, ThetaGate, Op
+from .circuit import Non_unitary_circuit
+from . import gate
 from typing import List
 from torch import nn
-import config
-from config import randn
+from . import config
+from .config import randn
 from copy import deepcopy
 from dataclasses import dataclass, KW_ONLY
 import torch
-import torch
-from differentiable_gate import (
+from .gate import (
     Gate,
     State,
     DenseGate,
 )
 import numpy as np
-from datatypes import *
+from .datatypes import *
 
 
 """Define gates as Hamiltonian evolution"""

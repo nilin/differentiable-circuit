@@ -2,7 +2,7 @@ import config
 import numpy as np
 import torch
 import argparse
-from differentiable_gate import *
+from gate import *
 from examples import Block, TFIM, HaarState, ZeroState, UnitaryBlock
 import examples
 from torch.nn import Parameter, ParameterList

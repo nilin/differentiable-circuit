@@ -1,15 +1,20 @@
 import argparse
-from examples import *
-from non_unitary_gates import *
 from torch import optim
 import os
 import math
-from datatypes import *
 import torch
 import json
-import gate_implementation
-from gate_implementation import add_qubits
-from differentiable_circuit import Circuit, UnitaryCircuit, Non_unitary_circuit
+from differentiable_circuit.examples import *
+from differentiable_circuit.non_unitary_gates import *
+from differentiable_circuit.datatypes import *
+from differentiable_circuit import gate_implementation
+from differentiable_circuit.gate_implementation import add_qubits
+from differentiable_circuit.circuit import (
+    Circuit,
+    UnitaryCircuit,
+    Non_unitary_circuit,
+    SquaredOverlap,
+)
 
 
 def makedir(path):
@@ -56,6 +61,19 @@ def retrieve(*values):
         yield value.detach().cpu().numpy()
 
 
+class RewindCircuit(Circuit):
+    def apply(self, psi, betas):
+        N = len(psi)
+        for forwardgate in self.gates:
+            psi_ = gate_implementation.add_qubits((0,), betas.pop(0), psi)
+            psi_ = forwardgate.do_backward(forwardgate.apply, psi_)
+            psi = psi[:N]
+        if betas:
+            return gate_implementation.add_qubits((0,), betas.pop(0), psi)
+        else:
+            return psi
+
+
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dm", action="store_true")
@@ -76,51 +94,47 @@ if __name__ == "__main__":
     psi_target = groundstate(H, n)
 
     add_ancilla = Add_0_ancilla(0)
-    random_out_ancilla = Random_out_ancilla(0)
     measure = Measurement(0)
 
     json.dump(vars(args), open(f"{outdir}/args.json", "w"), indent=2)
     torch.save(H, f"{outdir}/H.pt")
 
-    targets = []
-
     H_shifted = H.to_dense(n).set_ignored_positions((0,))
 
-    circuit = Non_unitary_circuit(gates=[])
-    psi_targets = [psi_target]
+    circuit = Non_unitary_circuit()
+    rewind = RewindCircuit()
+
+    Obs1 = lambda psi: probabilitymass(psi[: 2**n])
+
+    def Obs2(psi):
+        psi0, psi1, p0, p1 = measure.both_outcomes(psi)
+        value = p0 * squared_overlap(psi_target, psi0) + p1 * squared_overlap(
+            psi_target, psi1
+        )
+        return value
 
     for epoch in range(args.epochs):
         torch.save(circuit, f"{outdir}/circuit-{epoch}.pt")
         ublock = UnitaryBlock(H_shifted=H_shifted, l=l).set_direction_forward()
-        block = Block(ublock)
-        backblock = Random_out_ancilla_block(ublock)
         optimizer = optim.Adam(ublock.parameters(), lr=0.01)
 
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            psi_targets_new = []
-            value1 = 0
-            for psi_target_ in psi_targets:
-                psi_target_0 = add_qubits((0,), (1, 0), psi_target_) / math.sqrt(2.0)
-                psi_target_1 = add_qubits((0,), (0, 1), psi_target_) / math.sqrt(2.0)
-                psi_0 = ublock.do_backward(ublock.apply, psi_target_0)
-                psi_1 = ublock.do_backward(ublock.apply, psi_target_1)
-                value1 += probabilitymass(psi_0[: 2**n])  # / probabilitymass(psi_0)
-                value1 += probabilitymass(psi_1[: 2**n])  # / probabilitymass(psi_1)
-                psi_targets_new.append(psi_0[: 2**n])
-                psi_targets_new.append(psi_1[: 2**n])
+            betas = [[(0, 1), (1, 0)][np.random.choice(2)] for _ in range(epoch + 1)]
+            psi_target_ = rewind.apply(psi_target, betas)
+
+            psi_0 = ublock.do_backward(ublock.apply, psi_target_)
+            value1 = Obs1(psi_0)
+            # psi_0, value1, _ = ublock.do_backward(ublock.optimal_control, psi_target_, Obs1)
 
             y = add_qubits((0,), (1, 0), psi_target)
+
             y = ublock.apply(y)
-            psi0, psi1, p0, p1 = measure.both_outcomes(y)
+            value2 = Obs2(y)
+            # _, value2, _ = ublock.optimal_control(y, Obs2)
 
-            value2 = p0 * squared_overlap(psi_target, psi0) + p1 * squared_overlap(
-                psi_target, psi1
-            )
-            # value1 = value2
-
-            value = value1 + 10 * value2
+            value = value1 + value2
             loss = -value
             loss.backward()
 
@@ -133,7 +147,7 @@ if __name__ == "__main__":
                 f.write(f"{i} Ancilla {value1} invariance {value2}\n")
 
         torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
-        circuit.gates.insert(0, block)
-        # backcircuit.gates.insert(0, backblock)
-
+        circuit.gates.insert(0, Block(ublock))
         evaluation(circuit, psi_target)
+
+        rewind.gates.append(ublock)

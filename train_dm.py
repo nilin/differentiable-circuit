@@ -1,17 +1,17 @@
 import argparse
-from test_grad import TestGradChannel
-from examples import *
-from non_unitary_gates import *
+from differentiable_circuit.examples import *
+from differentiable_circuit.non_unitary_gates import *
 from torch import optim
 import os
-from datatypes import *
+from differentiable_circuit.datatypes import *
 from torch.nn import Parameter, ParameterList
 import torch
-import examples
+from differentiable_circuit import examples
 import pickle
 import json
+from collections import deque
 from torch import nn
-from differentiable_circuit import Non_unitary_circuit
+from differentiable_circuit.circuit import Non_unitary_circuit
 
 
 def makedir(path):
