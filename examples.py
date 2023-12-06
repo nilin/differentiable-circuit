@@ -1,8 +1,7 @@
 from differentiable_gate import *
 from non_unitary_gates import *
 from typing import List
-from differentiable_circuit import Circuit, UnitaryCircuit
-from differentiable_channel import Non_unitary_circuit
+from differentiable_circuit import Circuit, UnitaryCircuit, Non_unitary_circuit
 from dataclasses import dataclass
 from datatypes import *
 import torch
@@ -60,11 +59,6 @@ def shift_right(H, d):
     H2 = copy.deepcopy(H)
     for h in H2.terms:
         h.positions = tuple(p + d for p in h.positions)
-        # if h.k == 1:
-        #    h.p += d
-        # if h.k == 2:
-        #    h.p += d
-        #    h.q += d
     return H2
 
 

@@ -92,7 +92,6 @@ def apply_sparse_gate(positions: List[int], k_qubit_sparse_matrix: Tuple, psi: t
 
 
 def apply_gate_diag(positions: List[int], k_qubit_diag: torch.Tensor, psi: torch.Tensor):
-    """version 1"""
     N = len(psi)
     psi_out = torch.zeros_like(psi, device=device, dtype=tcomplex)
 
@@ -103,12 +102,6 @@ def apply_gate_diag(positions: List[int], k_qubit_diag: torch.Tensor, psi: torch
 
     del psi
     return psi_out
-
-    """version 2"""
-    # i = torch.arange(len(k_qubit_diag))
-    # indices = torch.stack([i, i], axis=1)
-    # sparse = (indices, k_qubit_diag)
-    # return apply_sparse_gate(positions, sparse, psi)
 
 
 """changing system size"""

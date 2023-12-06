@@ -2,7 +2,6 @@ import config
 import numpy as np
 import torch
 import argparse
-from differentiable_channel import cdot, squared_overlap, Non_unitary_circuit
 from differentiable_gate import *
 from examples import Block, TFIM, HaarState, ZeroState, UnitaryBlock
 import examples

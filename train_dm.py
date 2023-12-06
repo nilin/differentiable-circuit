@@ -4,7 +4,6 @@ from examples import *
 from non_unitary_gates import *
 from torch import optim
 import os
-from differentiable_channel import *
 from datatypes import *
 from torch.nn import Parameter, ParameterList
 import torch
@@ -12,6 +11,7 @@ import examples
 import pickle
 import json
 from torch import nn
+from differentiable_circuit import Non_unitary_circuit
 
 
 def makedir(path):
@@ -34,7 +34,7 @@ def groundstate(H: Hamiltonian, n: int):
     return states[:, 0]
 
 
-def testcircuit(circuit: Circuit, target: State, checkpoints=[1, 5, 10, 25]):
+def testcircuit(circuit: Circuit, target: State, checkpoints=[1, 5, 10, 25, 50, 75, 100]):
     print("\nEvaluating")
     rho = torch.eye(len(target), dtype=tcomplex, device=config.device) / len(target)
     for i in range(checkpoints[-1]):

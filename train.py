@@ -3,12 +3,13 @@ from examples import *
 from non_unitary_gates import *
 from torch import optim
 import os
-from differentiable_channel import *
+import math
 from datatypes import *
 import torch
 import json
 import gate_implementation
 from gate_implementation import add_qubits
+from differentiable_circuit import Circuit, UnitaryCircuit, Non_unitary_circuit
 
 
 def makedir(path):
@@ -31,17 +32,23 @@ def groundstate(H: Hamiltonian, n: int):
     return states[:, 0]
 
 
-def testcircuit(circuit, target, nsamples=10, repeats=20):
+def testcircuit(circuit, target, checkpoints=[1, 5, 10, 25, 50, 75, 100]):
     haarstate = HaarState(n, config.gen)
-    values = []
-    print(f"evaluation")
-    for i in range(nsamples):
-        psi_in = haarstate.pure_state().detach()
-        for _ in range(repeats):
-            psi_out = circuit.apply(psi_in)
+    psi_in = haarstate.pure_state().detach()
+    for i in range(checkpoints[-1]):
+        psi_out = circuit.apply(psi_in)
         value = squared_overlap(target, psi_out)
-        values.append(value.detach().cpu().numpy())
-    print(f"evaluation value {np.mean(np.array(values))}")
+        if i + 1 in checkpoints:
+            yield i + 1, value.detach().cpu().numpy()
+
+
+def evaluation(circuit, psi_target):
+    print("\nevaluation")
+    for s in range(5):
+        print(f"sample {s+1}")
+        for i, val in testcircuit(circuit, psi_target):
+            print(f"{i} repeats {val:.6f}")
+    print("evaluation done\n")
 
 
 def retrieve(*values):
@@ -52,7 +59,7 @@ def retrieve(*values):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--dm", action="store_true")
-    argparser.add_argument("--n", type=int, default=6)
+    argparser.add_argument("--n", type=int, default=10)
     argparser.add_argument("--l", type=int, default=20)
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
@@ -79,12 +86,8 @@ if __name__ == "__main__":
 
     H_shifted = H.to_dense(n).set_ignored_positions((0,))
 
-    # def Obs(psi_out):
-    #    psi_0, psi_1 = measure.apply_both(psi_out, normalize=False)
-    #    return squared_overlap(psi_target, psi_0) + squared_overlap(psi_target, psi_1)
-
     circuit = Non_unitary_circuit(gates=[])
-    backcircuit = Non_unitary_circuit(gates=[])
+    psi_targets = [psi_target]
 
     for epoch in range(args.epochs):
         torch.save(circuit, f"{outdir}/circuit-{epoch}.pt")
@@ -96,15 +99,19 @@ if __name__ == "__main__":
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            with torch.no_grad():
-                beta = HaarState(2, config.gen).pure_state()
-                psi_target_inner = backcircuit.do_backward(backcircuit.apply, psi_target)
-                psi_target_inner = random_out_ancilla.apply_backward(psi_target_inner)
+            psi_targets_new = []
+            value1 = 0
+            for psi_target_ in psi_targets:
+                psi_target_0 = add_qubits((0,), (1, 0), psi_target_) / math.sqrt(2.0)
+                psi_target_1 = add_qubits((0,), (0, 1), psi_target_) / math.sqrt(2.0)
+                psi_0 = ublock.do_backward(ublock.apply, psi_target_0)
+                psi_1 = ublock.do_backward(ublock.apply, psi_target_1)
+                value1 += probabilitymass(psi_0[: 2**n])  # / probabilitymass(psi_0)
+                value1 += probabilitymass(psi_1[: 2**n])  # / probabilitymass(psi_1)
+                psi_targets_new.append(psi_0[: 2**n])
+                psi_targets_new.append(psi_1[: 2**n])
 
-            psi_in = ublock.do_backward(ublock.apply, psi_target_inner)
-            value1 = probabilitymass(psi_in[: 2**n])
-
-            y = add_ancilla.apply(psi_target)
+            y = add_qubits((0,), (1, 0), psi_target)
             y = ublock.apply(y)
             psi0, psi1, p0, p1 = measure.both_outcomes(y)
 
@@ -127,6 +134,6 @@ if __name__ == "__main__":
 
         torch.save(ublock.state_dict(), f"{outdir}/params_t-{epoch}.pt")
         circuit.gates.insert(0, block)
-        backcircuit.gates.insert(0, backblock)
+        # backcircuit.gates.insert(0, backblock)
 
-        testcircuit(circuit, psi_target)
+        evaluation(circuit, psi_target)

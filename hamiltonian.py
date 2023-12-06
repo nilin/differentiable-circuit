@@ -1,5 +1,5 @@
 from differentiable_gate import GateState, Scalar, Gate, ThetaGate, Op
-from differentiable_channel import State, Non_unitary_circuit
+from differentiable_circuit import Non_unitary_circuit
 import differentiable_gate
 from typing import List
 from torch import nn
@@ -127,7 +127,8 @@ class Exp_i(ThetaGate, nn.Module):
     #        dU = -1j * self.speed * self.hamiltonian.H * self.scaled_control()
     #    else:
     #        D = torch.exp(
-    #            -1j * self.input * self.speed * self.hamiltonian.strength * self.eigs
+    #            -1j * self.input * self.speed * self.eigs
+    #            #-1j * self.input * self.speed * self.hamiltonian.strength * self.eigs
     #        )
     #        gate_state = self.U @ (D[:, None] * self.U.T)
     #        return gate_state
