@@ -94,23 +94,24 @@ class UnitaryCircuit(Circuit, torch.autograd.Function):
         return psi_t, E, self.backprop(psi_t, Xt)
 
     def backprop(self, psi, X):
-        dE_inputs_rev = []
-        inputs_rev = []
+        with torch.no_grad():
+            dE_inputs_rev = []
+            inputs_rev = []
 
-        for gate, where in self.flatgates_and_where()[::-1]:
-            if isinstance(gate, ThetaGate):
-                psi = gate.apply_reverse(psi)
+            for gate, where in self.flatgates_and_where()[::-1]:
+                if isinstance(gate, ThetaGate):
+                    psi = gate.apply_reverse(psi)
 
-                dU = gate.dgate_state()
-                dE_input = cdot(X, gate.apply_gate_state(dU, psi)).real
-                X = gate.apply_reverse(X)
+                    dU = gate.dgate_state()
+                    dE_input = cdot(X, gate.apply_gate_state(dU, psi)).real
+                    X = gate.apply_reverse(X)
 
-                dE_inputs_rev.append(dE_input)
-                inputs_rev.append(gate.input)
+                    dE_inputs_rev.append(dE_input)
+                    inputs_rev.append(gate.input)
 
-            else:
-                psi = gate.apply_reverse(psi)
-                X = gate.apply_reverse(X)
+                else:
+                    psi = gate.apply_reverse(psi)
+                    X = gate.apply_reverse(X)
 
         torch.autograd.backward(inputs_rev, dE_inputs_rev)
         return X
