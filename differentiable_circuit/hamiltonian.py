@@ -121,15 +121,13 @@ class Exp_i(ThetaGate, nn.Module):
     def control(self, t: Scalar):
         return self.transform_eigs_H(lambda eigs: torch.exp(-1j * t.to(device) * eigs))
 
-    # def dgate_state(self) -> GateState:
-    #    if self.diag:
-    #        dU = -1j * self.speed * self.hamiltonian.H * self.scaled_control()
-    #    else:
-    #        D = torch.exp(
-    #            -1j * self.input * self.speed * self.eigs
-    #            #-1j * self.input * self.speed * self.hamiltonian.strength * self.eigs
-    #        )
-    #        gate_state = self.U @ (D[:, None] * self.U.T)
-    #        return gate_state
-
-    #    return dU
+    def dgate_state(self) -> GateState:
+        """
+        (e^-itH)'=-iH e^-itH
+        """
+        a = self.speed
+        t = self.input.to(device)
+        dU = self.transform_eigs_H(
+            lambda eigs: -1j * a * eigs * torch.exp(-1j * a * t * eigs)
+        )
+        return dU

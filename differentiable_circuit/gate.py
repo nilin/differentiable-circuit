@@ -96,11 +96,11 @@ class ThetaGate(Gate):
         return self.apply_gate_state(gate_state, psi, **kwargs)
 
     def dgate_state(self) -> GateState:
-        warnings.warn(
-            "using autodiff jacobian to differentiate the gate state (dgate_state))"
-        )
-        dU = self.complex_out_jacobian(self.scaled_control, self.input).to(config.device)
-        return dU
+        """
+        To be implemented by subclasses (e.g. Exp_iH).
+        (e^-itH)'=-iH e^-itH
+        """
+        raise NotImplementedError
 
     def apply_reverse(self, psi: State):
         gate_state = self.scaled_control(self.input)
@@ -127,12 +127,6 @@ class ThetaGate(Gate):
     def set_direction_backward(self):
         self.speed = -abs(self.speed)
         return self
-
-    @staticmethod
-    def complex_out_jacobian(f, t):
-        real = torch_jacobian(lambda x: f(x).real, t)
-        imag = torch_jacobian(lambda x: f(x).imag, t)
-        return torch.complex(real, imag)
 
 
 class DenseGate(Gate):

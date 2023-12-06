@@ -84,19 +84,12 @@ class UnitaryCircuit(Circuit, torch.autograd.Function):
     def optimal_control(
         self,
         psi: State,
-        Obs: Callable[State, Scalar] = None,
-        target: State = None,
+        Obs_val_and_grad: Callable[State, Scalar] = None,
     ):
-        psi_t = self.apply(psi)
-
-        if target is None:
-            E = Obs(psi_t)
-            (Xt,) = torch.autograd.grad(E, psi_t, retain_graph=True)
-            Xt = Xt.conj()
-
-        else:
-            E = squared_overlap(target, psi_t)
-            Xt = cdot(target, psi_t) * target
+        with torch.no_grad():
+            psi_t = self.apply(psi)
+            E, Xt_ = Obs_val_and_grad(psi_t)
+            Xt = Xt_.conj()
 
         return psi_t, E, self.backprop(psi_t, Xt)
 

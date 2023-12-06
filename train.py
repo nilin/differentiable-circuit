@@ -76,11 +76,11 @@ class RewindCircuit(Circuit):
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--dm", action="store_true")
+    argparser.add_argument("--customgrad", action="store_true")
     argparser.add_argument("--n", type=int, default=10)
     argparser.add_argument("--l", type=int, default=20)
     argparser.add_argument("--epochs", type=int, default=100)
-    argparser.add_argument("--iterations_per_epoch", type=int, default=1000)
+    argparser.add_argument("--iterations_per_epoch", type=int, default=250)
     argparser.add_argument("--outdir", type=str, default="_outputs/run")
     args, _ = argparser.parse_known_args()
 
@@ -104,14 +104,26 @@ if __name__ == "__main__":
     circuit = Non_unitary_circuit()
     rewind = RewindCircuit()
 
-    Obs1 = lambda psi: probabilitymass(psi[: 2**n])
+    def Obs1_and_grad(psi):
+        E = probabilitymass(psi[: 2**n])
+        grad0 = psi.conj()[: 2**n]
+        grad = torch.cat((grad0, torch.zeros_like(grad0)))
+        return E, -grad
 
-    def Obs2(psi):
-        psi0, psi1, p0, p1 = measure.both_outcomes(psi)
-        value = p0 * squared_overlap(psi_target, psi0) + p1 * squared_overlap(
-            psi_target, psi1
+    def Obs2_and_grad(psi):
+        psi0 = psi[: 2**n]
+        psi1 = psi[2**n :]
+        value = squared_overlap(psi_target, psi0) + squared_overlap(psi_target, psi1)
+        grad = torch.cat(
+            (
+                cdot(psi0, psi_target) * psi_target.conj(),
+                cdot(psi1, psi_target) * psi_target.conj(),
+            )
         )
-        return value
+        return value, -grad
+
+    Obs1 = lambda psi: Obs1_and_grad(psi)[0]
+    Obs2 = lambda psi: Obs2_and_grad(psi)[0]
 
     for epoch in range(args.epochs):
         torch.save(circuit, f"{outdir}/circuit-{epoch}.pt")
@@ -121,22 +133,30 @@ if __name__ == "__main__":
         for i in range(args.iterations_per_epoch):
             optimizer.zero_grad()
 
-            betas = [[(0, 1), (1, 0)][np.random.choice(2)] for _ in range(epoch + 1)]
+            betas = [[(1, 0), (0, 1)][np.random.choice(2)] for _ in range(epoch + 1)]
             psi_target_ = rewind.apply(psi_target, betas)
 
-            psi_0 = ublock.do_backward(ublock.apply, psi_target_)
-            value1 = Obs1(psi_0)
-            # psi_0, value1, _ = ublock.do_backward(ublock.optimal_control, psi_target_, Obs1)
+            if args.customgrad:
+                psi_0, value1, _ = ublock.do_backward(
+                    ublock.optimal_control, psi_target_, Obs1_and_grad
+                )
+            else:
+                psi_0 = ublock.do_backward(ublock.apply, psi_target_)
+                value1 = Obs1(psi_0)
 
             y = add_qubits((0,), (1, 0), psi_target)
 
-            y = ublock.apply(y)
-            value2 = Obs2(y)
-            # _, value2, _ = ublock.optimal_control(y, Obs2)
+            if args.customgrad:
+                _, value2, _ = ublock.optimal_control(y, Obs2_and_grad)
+            else:
+                y = ublock.apply(y)
+                value2 = Obs2(y)
 
             value = value1 + value2
-            loss = -value
-            loss.backward()
+
+            if not args.customgrad:
+                loss = -value
+                loss.backward()
 
             optimizer.step()
 
